@@ -1,0 +1,304 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import requests
+import os
+import re
+import PyPDF2
+from io import BytesIO
+import numpy as np
+from collections import Counter
+from typing import List
+
+# --------------------------------------------------
+# PAGE CONFIGURATION & CUSTOM STYLE
+# --------------------------------------------------
+st.set_page_config(page_title="Policy Insight Generator", page_icon="📑", layout="wide")
+st.markdown("""
+<style>
+body {
+    font-family: 'SF Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+.card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px 0;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --------------------------------------------------
+# AZURE DEEPSEEK API SETTINGS
+# --------------------------------------------------
+AZURE_ENDPOINT = os.getenv("AZURE_INFERENCE_SDK_ENDPOINT", "https://athar-m8479mhw-francecentral.services.ai.azure.com/models")
+MODEL_NAME = os.getenv("DEPLOYMENT_NAME", "DeepSeek-V3-varsee-training")
+API_KEY = "7bCjwl8Ygu5X8n4I1VijbRlB7lKBa4GYS2ZR4LS4L8iBklDGxbbZJQQJ99BCAC5T7U2XJ3w3AAAAACOGpyVY"  # Replace with your real key
+
+# --------------------------------------------------
+# HELPER FUNCTIONS
+# --------------------------------------------------
+def extract_text_from_pdf(pdf_file) -> str:
+    """Extracts text from a PDF file using PyPDF2."""
+    text = ""
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+    except Exception as e:
+        st.error(f"Error reading PDF: {e}")
+    return text
+
+def process_policy_document(text: str) -> List[dict]:
+    """
+    Extracts numbered clauses from the policy document.
+    Returns a list of dictionaries with keys: clause_id, text, recommendations.
+    """
+    clauses = []
+    clause_pattern = r'(\d+[\.\)]\s*)(.*?)(?=\d+[\.\)]|\Z)'
+    matches = re.finditer(clause_pattern, text, re.DOTALL)
+    for match in matches:
+        clause_id = match.group(1).strip()
+        clause_text = match.group(2).strip()
+        if clause_text:
+            clauses.append({"clause_id": clause_id, "text": clause_text, "recommendations": []})
+    return clauses
+
+def call_deepseek_api(prompt: str) -> str:
+    """
+    Calls the Azure DeepSeek API with the given prompt.
+    Returns the AI response text.
+    """
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": API_KEY
+        }
+        payload = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an AI assistant that categorizes policy recommendations based on policy clauses."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "max_tokens": 150
+        }
+        response = requests.post(AZURE_ENDPOINT, headers=headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return content.strip()
+        else:
+            return f"API Error: {response.status_code}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_interactive_objective_chart(data: pd.Series, chart_type: str):
+    """
+    Generates an interactive Plotly chart for objective data.
+    NA/blank values are included by filling them with the string "NA".
+    """
+    data = data.fillna("NA")
+    counts = data.value_counts()
+    df = pd.DataFrame({"Category": counts.index, "Count": counts.values})
+    if chart_type == "bar":
+        fig = px.bar(df, x="Category", y="Count", labels={"Category": "Category", "Count": "Count"})
+    elif chart_type == "pie":
+        fig = px.pie(df, names="Category", values="Count")
+    elif chart_type == "line":
+        fig = px.line(df, x="Category", y="Count", markers=True, labels={"Category": "Category", "Count": "Count"})
+    elif chart_type == "doughnut":
+        fig = px.pie(df, names="Category", values="Count", hole=0.4)
+    else:
+        fig = go.Figure()
+    return fig
+
+def generate_interactive_wordcloud(text: str):
+    """
+    Generates an interactive word cloud using Plotly.
+    This function computes word frequencies and places words at random positions.
+    """
+    words = text.split()
+    if not words:
+        return None
+    counter = Counter(words)
+    df = pd.DataFrame(counter.items(), columns=["word", "frequency"])
+    np.random.seed(42)
+    df["x"] = np.random.rand(len(df))
+    df["y"] = np.random.rand(len(df))
+    fig = px.scatter(df, x="x", y="y", size="frequency", text="word",
+                     hover_data={"frequency": True, "x": False, "y": False},
+                     title="Interactive Word Cloud")
+    fig.update_traces(textposition='top center')
+    fig.update_layout(xaxis=dict(showgrid=False, zeroline=False, visible=False),
+                      yaxis=dict(showgrid=False, zeroline=False, visible=False))
+    return fig
+
+def generate_interactive_circle_packing(data: pd.Series):
+    """
+    Generates an interactive bubble chart (as a placeholder for circle packing)
+    using Plotly. NA/blank values are included.
+    """
+    data = data.fillna("NA")
+    counts = data.value_counts()
+    df = pd.DataFrame({"Category": counts.index, "Count": counts.values})
+    np.random.seed(42)
+    df["x"] = np.random.rand(len(df))
+    df["y"] = np.random.rand(len(df))
+    fig = px.scatter(df, x="x", y="y", size="Count", color="Category",
+                     hover_name="Category", hover_data={"Count": True, "x": False, "y": False},
+                     title="Interactive Circle Packing")
+    fig.update_layout(xaxis=dict(showgrid=False, zeroline=False, visible=False),
+                      yaxis=dict(showgrid=False, zeroline=False, visible=False))
+    return fig
+
+def map_clauses_to_feedback(clauses: List[dict], df: pd.DataFrame, subjective_columns: List[str]) -> List[dict]:
+    """
+    For each policy clause, check each subjective response (from the designated columns)
+    and append the response to the clause's recommendations if keywords match.
+    """
+    for clause in clauses:
+        recommendations = []
+        for col in subjective_columns:
+            # Do not filter out NA/blank values—treat them as "NA"
+            for response in df[col].fillna("NA"):
+                # Consider the first few words as keywords from the clause
+                keywords = clause["text"].split()[:5]
+                if any(keyword.lower() in response.lower() for keyword in keywords):
+                    recommendations.append(response)
+        clause["recommendations"] = recommendations
+    return clauses
+
+# --------------------------------------------------
+# SIDE UPLOAD PANEL
+# --------------------------------------------------
+with st.sidebar:
+    st.header("Upload Files")
+    policy_file = st.file_uploader("Upload Draft Policy Document (.txt, .pdf)", type=["txt", "pdf"])
+    responses_file = st.file_uploader("Upload Responses Sheet (.xlsx)", type=["xlsx"])
+
+if not policy_file or not responses_file:
+    st.info("Please upload both files from the sidebar.")
+    st.stop()
+
+# --------------------------------------------------
+# PROCESS FILES
+# --------------------------------------------------
+# Process policy document
+if policy_file.type == "application/pdf":
+    policy_text = extract_text_from_pdf(policy_file)
+else:
+    policy_text = policy_file.getvalue().decode("utf-8")
+
+# Process responses sheet (Excel)
+try:
+    responses_df = pd.read_excel(responses_file)
+except Exception as e:
+    st.error(f"Error processing responses sheet: {e}")
+    st.stop()
+
+# --------------------------------------------------
+# COLUMN CONFIGURATION POP-UP (Expander)
+# --------------------------------------------------
+st.markdown("## Column Configuration")
+with st.expander("Configure Columns & Chart Options", expanded=True):
+    st.markdown("For each column in the responses sheet, choose its role and chart type (if applicable).")
+    # Store configuration for each column in session_state
+    if "column_config" not in st.session_state:
+        st.session_state["column_config"] = {}
+    
+    all_columns = responses_df.columns.tolist()
+    for col in all_columns:
+        st.markdown(f"**{col}**")
+        col1, col2 = st.columns(2)
+        with col1:
+            role = st.selectbox(f"Select role for '{col}':", 
+                                options=["None", "Objective", "Subjective", "Identifier", "Sentiment"],
+                                key=f"role_{col}")
+        with col2:
+            # Show chart type selection only for Objective, Subjective, and Sentiment (treated as objective)
+            if st.session_state.get(f"role_{col}", "None") in ["Objective", "Subjective", "Sentiment"]:
+                if st.session_state.get(f"role_{col}") in ["Objective", "Sentiment"]:
+                    chart_options = ["bar", "pie", "line", "doughnut"]
+                else:
+                    chart_options = ["word cloud", "circle packing"]
+                chart_type = st.selectbox(f"Select chart type for '{col}':", options=chart_options, key=f"chart_{col}")
+            else:
+                chart_type = "None"
+        st.session_state["column_config"][col] = {"role": st.session_state.get(f"role_{col}", "None"),
+                                                  "chart": chart_type}
+    perform_analysis = st.button("Perform Analysis")
+
+# --------------------------------------------------
+# PERFORM ANALYSIS: GENERATE INTERACTIVE CHARTS
+# --------------------------------------------------
+if perform_analysis:
+    st.markdown("## Analysis Results")
+    for col, config in st.session_state["column_config"].items():
+        role = config["role"]
+        chart_type = config["chart"]
+        # Treat "Objective" and "Sentiment" as objective charts
+        if role in ["Objective", "Sentiment"]:
+            st.markdown(f"<div class='card'><strong>{col} ({role})</strong></div>", unsafe_allow_html=True)
+            data = responses_df[col]
+            # Do not filter out NA/blank values (use fillna to include them as "NA")
+            fig = generate_interactive_objective_chart(data, chart_type)
+            st.plotly_chart(fig, use_container_width=True)
+        elif role == "Subjective":
+            st.markdown(f"<div class='card'><strong>{col} (Subjective)</strong></div>", unsafe_allow_html=True)
+            data = responses_df[col]
+            # Combine responses for word cloud or use raw data for circle packing
+            if chart_type == "word cloud":
+                combined_text = " ".join(data.fillna("NA").astype(str).tolist())
+                fig = generate_interactive_wordcloud(combined_text)
+                if fig is not None:
+                    st.plotly_chart(fig, use_container_width=True)
+            elif chart_type == "circle packing":
+                fig = generate_interactive_circle_packing(data)
+                st.plotly_chart(fig, use_container_width=True)
+        elif role in ["Identifier"]:
+            st.markdown(f"<div class='card'><strong>{col} ({role})</strong></div>", unsafe_allow_html=True)
+            st.write(responses_df[col])
+    st.success("Interactive charts generated successfully.")
+
+    # --------------------------------------------------
+    # AI-BASED CATEGORIZATION OF SUBJECTIVE RESPONSES
+    # --------------------------------------------------
+    st.markdown("## AI Categorization of Subjective Responses")
+    if st.button("Categorize Subjective Responses"):
+        subjective_data = []
+        # Gather all non-blank responses from columns marked as Subjective
+        for col, config in st.session_state["column_config"].items():
+            if config["role"] == "Subjective":
+                for resp in responses_df[col].fillna("NA"):
+                    if resp != "NA" and str(resp).strip() != "":
+                        subjective_data.append({"Column": col, "Response": resp})
+        if not subjective_data:
+            st.warning("No subjective responses found for categorization.")
+        else:
+            results = []
+            progress_bar = st.progress(0)
+            total = len(subjective_data)
+            for idx, item in enumerate(subjective_data):
+                response_text = item["Response"]
+                prompt = f"Categorize the following policy feedback by indicating which clause of the policy it refers to (if any):\n\n\"{response_text}\""
+                categorized = call_deepseek_api(prompt)
+                results.append({"Column": item["Column"], "Subjective Response": response_text, "Categorized Clause": categorized})
+                progress_bar.progress((idx+1)/total)
+            progress_bar.empty()
+            result_df = pd.DataFrame(results)
+            st.markdown("### AI Categorization Results")
+            st.dataframe(result_df)

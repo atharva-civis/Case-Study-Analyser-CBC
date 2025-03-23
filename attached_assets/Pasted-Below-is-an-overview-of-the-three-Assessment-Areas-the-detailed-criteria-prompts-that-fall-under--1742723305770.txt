@@ -1,0 +1,110 @@
+Below is an overview of the three Assessment Areas, the detailed criteria (prompts) that fall under each area, and the table structure used to evaluate each criterion.
+
+1. Assessment Areas & Criteria
+Assessment Area 1 – Does the Draft Clearly Explain Why and What?
+Justification (1–5)
+
+Is the need for the policy well-founded?
+
+Does the policy provide relevant context, data, or rationale for why it is needed?
+
+Essential Elements (1–5)
+
+Are the main objectives, provisions, or changes the policy introduces clearly stated?
+
+Does it specify what the policy aims to achieve?
+
+Comprehension (1–5)
+
+Is the policy text accessible, logically structured, and free of contradictions?
+
+Does it use clear language, headings, or summaries that aid understanding?
+
+Assessment Area 2 – Does the Draft Thoroughly Assess the Impact?
+Problem Identification
+
+Does the policy define the root cause or specific issue it aims to address?
+
+Are challenges or market failures clearly outlined?
+
+Evidence for the Problem
+
+Does the policy provide data, research, or statistics to illustrate the problem?
+
+Are references or external studies cited?
+
+Cost-Benefit Analysis
+
+Does the policy include an economic or financial appraisal of its measures?
+
+Does it weigh potential benefits against costs or risks?
+
+Alternatives
+
+Does the draft discuss other policy models or approaches?
+
+Is there a reason the chosen approach is deemed preferable?
+
+Stakeholder Impacts
+
+Regulated Entities: How does the policy affect those directly regulated?
+
+Intended Beneficiaries: Are direct beneficiaries (e.g., MSMEs, artisans, exporters) identified clearly?
+
+Indirect Stakeholders: Does it address communities, service providers, or supply-chain actors indirectly affected?
+
+Environmental Considerations
+
+Does the policy mention potential environmental impacts?
+
+Does it provide mitigation measures?
+
+Time Frames
+
+Are there clear timelines for implementation or achieving policy goals?
+
+Does it distinguish between short-, medium-, and long-term impacts?
+
+Continuous Evaluation
+
+Is there a mechanism for ongoing monitoring or iterative review?
+
+Are oversight committees or annual reporting procedures mentioned?
+
+Territorial Impact
+
+Does the policy address geographic considerations (rural vs. urban, different zones or clusters)?
+
+Are regional disparities or localized impacts accounted for?
+
+Assessment Area 3 – Does the Draft Enable Meaningful Public Participation?
+Consultation Duration (1–5)
+
+Is there a defined window (e.g., 30 days) for public feedback?
+
+Does the policy specify timelines or deadlines for submitting comments?
+
+Feedback Collection (1–5)
+
+Are there multiple avenues for providing feedback (online, offline, in-person)?
+
+Does the policy specify how feedback will be gathered, documented, or addressed?
+
+Translations (1–5)
+
+Does the policy mention translations into local/regional languages?
+
+Are accessibility measures for disabled or non-English-speaking stakeholders discussed?
+
+2. Table Structure
+When presenting the evaluation for each Assessment Area, you can use a four-column table as follows:
+
+Criteria	Score	Reasoning & Evidence	Document Reference
+1. The name of the sub-criterion	A numerical or qualitative score (e.g., 1–5, 0–2, or 0–1 depending on your scoring scale)	A short explanation of why the score was assigned, citing examples or evidence from the policy text. If there are gaps, note what’s missing or unclear.	Specific page numbers, sections, or annexures in the policy document that substantiate or relate to the scoring.
+Criteria: Lists each element being evaluated (e.g., Justification, Cost-Benefit Analysis, Consultation Duration).
+
+Score: Numerical or categorical rating (0–5 is typical, but sub-criteria can use different scales if needed).
+
+Reasoning & Evidence: A concise explanation linking the policy’s content to the assigned score, highlighting strengths, weaknesses, or missing information.
+
+Document Reference: Pinpoints relevant sections or pages in the policy draft where the evaluation evidence appears.
