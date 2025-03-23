@@ -103,9 +103,37 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
         # If JSON format was requested, parse the result
         if response_format == "json_object":
             try:
-                return json.loads(content)
+                result = json.loads(content)
+                
+                # Ensure all expected fields exist and have the correct types
+                if "score" not in result:
+                    result["score"] = 3  # Default middle score
+                elif not isinstance(result["score"], (int, float)):
+                    # Convert to number if possible, otherwise use default
+                    try:
+                        result["score"] = float(result["score"])
+                    except ValueError:
+                        result["score"] = 3
+                
+                # Ensure reasoning is a string
+                if "reasoning" not in result:
+                    result["reasoning"] = "No reasoning provided"
+                elif isinstance(result["reasoning"], list):
+                    result["reasoning"] = ". ".join([str(item) for item in result["reasoning"]])
+                
+                # Ensure document_reference is a string
+                if "document_reference" not in result:
+                    result["document_reference"] = "No document reference provided"
+                elif isinstance(result["document_reference"], list):
+                    result["document_reference"] = ". ".join([str(item) for item in result["document_reference"]])
+                
+                return result
             except json.JSONDecodeError:
-                return {"error": "Failed to parse JSON response", "raw_content": content}
+                return {
+                    "score": 0,
+                    "reasoning": "Failed to parse response from AI model",
+                    "document_reference": "Error in analysis"
+                }
         
         return content
     

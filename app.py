@@ -76,39 +76,64 @@ with st.sidebar:
                 st.session_state.policy_summary = call_openai_api(prompt)
         
         if st.button("Perform Full Assessment"):
-            with st.spinner("Analyzing policy document against assessment criteria..."):
-                st.session_state.assessment_results = {}
+            progress_text = st.empty()
+            progress_bar = st.progress(0)
+            
+            st.session_state.assessment_results = {}
+            
+            # Count total criteria for progress tracking
+            total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS)
+            processed_criteria = 0
+            
+            # Process each assessment area
+            for area_id, area_info in ASSESSMENT_AREAS.items():
+                progress_text.text(f"Analyzing: {area_info['name']}")
+                criteria = ASSESSMENT_CRITERIA[area_id]
                 
-                # Process each assessment area
-                for area_id, area_info in ASSESSMENT_AREAS.items():
-                    area_name = area_info["name"]
-                    criteria = ASSESSMENT_CRITERIA[area_id]
+                st.session_state.assessment_results[area_id] = {}
+                
+                # Process each criterion in this area (one at a time)
+                for criterion_id, criterion_info in criteria.items():
+                    criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
+                    progress_text.text(criterion_progress)
                     
-                    st.session_state.assessment_results[area_id] = {}
+                    prompt = f"""
+                    You are a policy analysis expert. Please evaluate the following policy document 
+                    against this specific criterion: "{criterion_info['description']}"
                     
-                    # Process each criterion in this area
-                    for criterion_id, criterion_info in criteria.items():
-                        prompt = f"""
-                        You are a policy analysis expert. Please evaluate the following policy document 
-                        against this specific criterion: "{criterion_info['description']}"
-                        
-                        Policy Document:
-                        {st.session_state.policy_text[:4000]}  # Limit text length
-                        
-                        Provide an analysis with the following JSON structure:
-                        {{
-                            "score": [a number between 1 and 5, where 1 is poor and 5 is excellent],
-                            "reasoning": [detailed explanation of why this score was given],
-                            "document_reference": [specific sections or content from the document that supports this assessment]
-                        }}
-                        
-                        Base your evaluation on how well the document addresses this criterion.
-                        """
-                        
+                    Policy Document:
+                    {st.session_state.policy_text[:4000]}  # Limit text length
+                    
+                    Provide an analysis with the following JSON structure:
+                    {{
+                        "score": [a number between 1 and 5, where 1 is poor and 5 is excellent],
+                        "reasoning": [detailed explanation of why this score was given as a single string, not a list],
+                        "document_reference": [specific sections or content from the document that supports this assessment as a single string, not a list]
+                    }}
+                    
+                    Ensure that ALL fields (score, reasoning, document_reference) are provided and that reasoning and document_reference are STRINGS, not lists or arrays.
+                    
+                    Base your evaluation on how well the document addresses this criterion.
+                    """
+                    
+                    with st.spinner(f"Analyzing {criterion_info['name']}..."):
                         result = call_openai_api(prompt, response_format="json_object")
+                        
+                        # Ensure consistent data types - convert any lists to strings
+                        if isinstance(result.get("reasoning"), list):
+                            result["reasoning"] = ". ".join(result["reasoning"])
+                        if isinstance(result.get("document_reference"), list):
+                            result["document_reference"] = ". ".join(result["document_reference"])
+                        
                         st.session_state.assessment_results[area_id][criterion_id] = result
-                
-                st.success("Assessment complete!")
+                    
+                    # Update progress
+                    processed_criteria += 1
+                    progress_bar.progress(processed_criteria / total_criteria)
+            
+            progress_text.text("Assessment complete!")
+            progress_bar.progress(100)
+            st.success("Policy assessment completed successfully!")
     else:
         st.info("Please upload a document first")
 
