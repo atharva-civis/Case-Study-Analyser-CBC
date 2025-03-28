@@ -246,18 +246,18 @@ if st.session_state.policy_text:
                         
                         {json.dumps(low_scores, indent=2)}
                         
-                        Format each recommendation as a bullet point. Make the recommendations specific, 
+                        Format each recommendation as a dash list item. Make the recommendations specific, 
                         practical, and directly tied to addressing deficiencies in the assessment.
                         
                         Example format:
-                        • Recommendation 1: [specific action] to address [specific issue]
-                        • Recommendation 2: [specific action] to address [specific issue]
+                        - Recommendation 1: [specific action] to address [specific issue]
+                        - Recommendation 2: [specific action] to address [specific issue]
                         etc.
                         """
                         
                         st.session_state.recommendations = call_openai_api(prompt)
                     else:
-                        st.session_state.recommendations = "• The policy generally scores well across all assessment areas. Consider maintaining the current approach while monitoring implementation effectiveness."
+                        st.session_state.recommendations = "- The policy generally scores well across all assessment areas. Consider maintaining the current approach while monitoring implementation effectiveness."
             
             st.download_button(
                 label="Export Report as PDF",

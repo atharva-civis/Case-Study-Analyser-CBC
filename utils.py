@@ -410,13 +410,21 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
         # Format the recommendations text
         pdf.set_font('Arial', '', 11)
         
-        # Split recommendations by bullet points if they're in that format
-        if "•" in recommendations:
+        # Split recommendations by dash list items or bullet points
+        if "-" in recommendations:
+            rec_points = recommendations.split("-")
+            for point in rec_points:
+                if point.strip():
+                    pdf.set_font('Arial', '', 11)
+                    pdf.multi_cell(0, 6, "- " + point.strip())
+                    pdf.ln(2)
+        # Fallback in case bullet points are still used
+        elif "•" in recommendations:
             rec_points = recommendations.split("•")
             for point in rec_points:
                 if point.strip():
                     pdf.set_font('Arial', '', 11)
-                    pdf.multi_cell(0, 6, "• " + point.strip())
+                    pdf.multi_cell(0, 6, "- " + point.strip())
                     pdf.ln(2)
         else:
             pdf.multi_cell(0, 6, recommendations)
