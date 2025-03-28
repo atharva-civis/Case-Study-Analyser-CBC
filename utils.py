@@ -9,6 +9,8 @@ from io import BytesIO
 from openai import OpenAI
 from fpdf import FPDF
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Initialize OpenAI client
 # The newest OpenAI model is "gpt-4o" which was released May 13, 2024.
@@ -364,18 +366,6 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             import io
             
             try:
-                # These imports are only needed for chart generation
-                try:
-                    from matplotlib import pyplot as plt
-                    import numpy as np
-                except ImportError:
-                    # Install matplotlib and numpy if they don't exist
-                    import sys
-                    import subprocess
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "matplotlib", "numpy"])
-                    from matplotlib import pyplot as plt
-                    import numpy as np
-                
                 # Get the area criteria from the assessment criteria dictionary
                 area_criteria_data = assessment_criteria[area_id]
                 
