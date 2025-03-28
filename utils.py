@@ -186,6 +186,73 @@ def create_gauge_chart(score, title):
     
     return fig
     
+def sanitize_text_for_pdf(text):
+    """
+    Sanitize text to be compatible with FPDF's latin-1 encoding
+    
+    Args:
+        text (str): Text to sanitize
+        
+    Returns:
+        str: Sanitized text
+    """
+    if not text:
+        return ""
+    
+    # Replace problematic characters
+    replacements = {
+        # Quotes and apostrophes
+        '\u2018': "'",  # Left single quotation mark
+        '\u2019': "'",  # Right single quotation mark
+        '\u201c': '"',  # Left double quotation mark
+        '\u201d': '"',  # Right double quotation mark
+        
+        # Dashes and hyphens
+        '\u2013': '-',  # En dash
+        '\u2014': '--', # Em dash
+        '\u2015': '--', # Horizontal bar
+        '\u2212': '-',  # Minus sign
+        
+        # Bullets and list markers
+        '\u2022': '-',  # Bullet
+        '\u2023': '-',  # Triangular bullet
+        '\u2043': '-',  # Hyphen bullet
+        '\u25e6': '-',  # White bullet
+        '\u2219': '-',  # Bullet operator
+        
+        # Spaces and breaks
+        '\u00a0': ' ',  # Non-breaking space
+        '\u2000': ' ',  # En quad
+        '\u2001': ' ',  # Em quad
+        '\u2002': ' ',  # En space
+        '\u2003': ' ',  # Em space
+        '\u2004': ' ',  # Three-per-em space
+        '\u2005': ' ',  # Four-per-em space
+        '\u2006': ' ',  # Six-per-em space
+        '\u2007': ' ',  # Figure space
+        '\u2008': ' ',  # Punctuation space
+        '\u2009': ' ',  # Thin space
+        '\u200a': ' ',  # Hair space
+        
+        # Other punctuation
+        '\u2026': '...', # Ellipsis
+        '\u00b7': '.',   # Middle dot
+        
+        # Symbols
+        '\u2713': 'v',   # Check mark
+        '\u2192': '->',  # Rightward arrow
+        '\u21e8': '->',  # Rightward white arrow
+        '\u25ba': '>'    # Black right-pointing pointer
+    }
+    
+    for original, replacement in replacements.items():
+        text = text.replace(original, replacement)
+    
+    # Remove any other non-latin1 characters
+    text = text.encode('latin-1', errors='replace').decode('latin-1')
+    
+    return text
+
 def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria, recommendations=""):
     """
     Generate a PDF report of the policy assessment
@@ -202,6 +269,11 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
     Returns:
         BytesIO: PDF file as BytesIO object
     """
+    # Sanitize all text inputs for PDF compatibility
+    policy_name = sanitize_text_for_pdf(policy_name)
+    policy_summary = sanitize_text_for_pdf(policy_summary)
+    if recommendations:
+        recommendations = sanitize_text_for_pdf(recommendations)
     class PDF(FPDF):
         def header(self):
             # Set up the header
@@ -503,11 +575,15 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 reasoning = result.get("reasoning", "No reasoning provided")
                 doc_ref = result.get("document_reference", "No references provided")
                 
+                # Sanitize the text to avoid encoding issues
+                reasoning = sanitize_text_for_pdf(reasoning)
+                doc_ref = sanitize_text_for_pdf(doc_ref)
+                
                 # Criterion header with box
                 pdf.set_draw_color(100, 100, 100)
                 pdf.set_fill_color(240, 248, 255)  # Light blue background
                 pdf.set_font('Arial', 'B', 11)
-                pdf.cell(0, 8, f"{criterion_name}", 1, 1, 'L', True)
+                pdf.cell(0, 8, f"{sanitize_text_for_pdf(criterion_name)}", 1, 1, 'L', True)
                 
                 # Score with colored box
                 if score >= 4:
@@ -559,6 +635,8 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     cleaned_part = part.strip().replace('\n', ' ')
                     # Remove any stray bullets or formatting that might be causing breaks
                     cleaned_part = cleaned_part.replace('•', '').replace('- ', '')
+                    # Sanitize for PDF compatibility
+                    cleaned_part = sanitize_text_for_pdf(cleaned_part)
                     
                     # Handle recommendation number formatting
                     if ':' in cleaned_part and cleaned_part.find(':') < 10:
@@ -587,6 +665,8 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 if point.strip():
                     # Clean up and replace newlines with spaces for continuous text
                     clean_point = point.strip().replace('\n', ' ')
+                    # Sanitize for PDF compatibility
+                    clean_point = sanitize_text_for_pdf(clean_point)
                     pdf.set_font('Arial', '', 11)
                     # Use bullet point symbol with proper indentation
                     pdf.cell(5, 6, "•", 0, 0)
@@ -599,6 +679,8 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 if point.strip():
                     # Clean up and replace newlines with spaces for continuous text
                     clean_point = point.strip().replace('\n', ' ')
+                    # Sanitize for PDF compatibility
+                    clean_point = sanitize_text_for_pdf(clean_point)
                     pdf.set_font('Arial', '', 11)
                     # Use bullet point symbol with proper indentation
                     pdf.cell(5, 6, "•", 0, 0)
@@ -606,7 +688,9 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     pdf.ln(2)
         else:
             # Just show as regular text if no structured format detected
-            pdf.multi_cell(0, 6, recommendations.replace('\n', ' '))
+            # Sanitize for PDF compatibility
+            sanitized_recommendations = sanitize_text_for_pdf(recommendations.replace('\n', ' '))
+            pdf.multi_cell(0, 6, sanitized_recommendations)
     
     # Save to BytesIO
     pdf_bytes = pdf.output(dest='S')
