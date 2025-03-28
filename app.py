@@ -297,6 +297,21 @@ with st.sidebar:
         # Set session state and rerun if changed
         if sidebar_tab != st.session_state.sidebar_tab:
             st.session_state.sidebar_tab = sidebar_tab
+            
+            # Clear main section content when switching tabs
+            if sidebar_tab == "New Assessment":
+                # Reset assessment view data
+                if 'policy_analysis' in st.session_state:
+                    st.session_state.policy_analysis = None
+                if 'assessment_results' in st.session_state:
+                    st.session_state.assessment_results = {}
+                if 'recommendations' in st.session_state:
+                    st.session_state.recommendations = ""
+            elif sidebar_tab == "History":
+                # Reset history view data if needed
+                if 'selected_assessment' in st.session_state:
+                    st.session_state.selected_assessment = None
+            
             st.rerun()
         
         st.markdown("---")

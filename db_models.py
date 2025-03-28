@@ -135,43 +135,69 @@ def authenticate_user(username, password):
 
 def save_assessment(user_id, document_name, policy_summary, assessment_results, recommendations):
     """Save assessment results to history"""
-    db = get_db()
-    
-    # Convert assessment_results to JSON string
-    assessment_results_json = json.dumps(assessment_results)
-    
-    # Create new assessment history record
-    assessment = AssessmentHistory(
-        user_id=user_id,
-        document_name=document_name,
-        policy_summary=policy_summary,
-        assessment_results=assessment_results_json,
-        recommendations=recommendations
-    )
-    
-    db.add(assessment)
-    db.commit()
-    db.refresh(assessment)
-    db.close()
-    return assessment.id
+    try:
+        db = get_db()
+        
+        # Convert assessment_results to JSON string
+        assessment_results_json = json.dumps(assessment_results)
+        
+        # Create new assessment history record
+        assessment = AssessmentHistory(
+            user_id=user_id,
+            document_name=document_name,
+            policy_summary=policy_summary,
+            assessment_results=assessment_results_json,
+            recommendations=recommendations
+        )
+        
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+        return assessment.id
+    except Exception as e:
+        print(f"Database error in save_assessment: {str(e)}")
+        if 'db' in locals():
+            db.rollback()
+        return None
+    finally:
+        if 'db' in locals():
+            db.close()
 
 def get_user_assessments(user_id):
     """Get all assessments for a specific user"""
-    db = get_db()
-    assessments = db.query(AssessmentHistory).filter(
-        AssessmentHistory.user_id == user_id
-    ).order_by(AssessmentHistory.created_at.desc()).all()
-    db.close()
-    return assessments
+    try:
+        db = get_db()
+        assessments = db.query(AssessmentHistory).filter(
+            AssessmentHistory.user_id == user_id
+        ).order_by(AssessmentHistory.created_at.desc()).all()
+        
+        # Copy the results to a list to avoid SQLAlchemy lazy loading issues
+        result = []
+        for assessment in assessments:
+            result.append(assessment)
+        
+        return result
+    except Exception as e:
+        print(f"Database error in get_user_assessments: {str(e)}")
+        return []
+    finally:
+        if 'db' in locals():
+            db.close()
 
 def get_assessment(assessment_id):
     """Get a specific assessment by ID"""
-    db = get_db()
-    assessment = db.query(AssessmentHistory).filter(
-        AssessmentHistory.id == assessment_id
-    ).first()
-    db.close()
-    return assessment
+    try:
+        db = get_db()
+        assessment = db.query(AssessmentHistory).filter(
+            AssessmentHistory.id == assessment_id
+        ).first()
+        return assessment
+    except Exception as e:
+        print(f"Database error in get_assessment: {str(e)}")
+        return None
+    finally:
+        if 'db' in locals():
+            db.close()
 
 # Streamlit session state utilities
 def initialize_session_state():
