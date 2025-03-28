@@ -362,55 +362,90 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             pdf.ln(5)
             
             # Create a bar chart visualization for the PDF
-            # We have to create the chart as an image and embed it
-            import io
+            pdf.sub_section_title("Criteria Score Visualization")
             
             try:
-                # Get the area criteria from the assessment criteria dictionary
+                # Create a simple visualization using the FPDF directly for reliability
                 area_criteria_data = assessment_criteria[area_id]
                 
                 # Get criteria names and scores
-                criteria_names = [area_criteria_data[crit_id]["name"] for crit_id in area_results.keys()]
-                scores = [area_results[crit_id].get("score", 0) for crit_id in area_results.keys()]
+                criteria_list = list(area_results.keys())
+                criteria_list.sort()  # Sort for consistent order
                 
-                # Create a horizontal bar chart
-                plt.figure(figsize=(6, 4))
-                y_pos = np.arange(len(criteria_names))
+                # Set up the chart dimensions
+                chart_x = 25  # Starting X position
+                chart_width = 160  # Width of chart area
+                bar_height = 10  # Height of each bar
+                max_bar_width = 120  # Maximum width of bars at score 5
+                header_height = 20  # Height for headers
+                space_between = 8  # Space between bars
                 
-                # Shorten long criteria names
-                short_names = [name[:40] + '...' if len(name) > 40 else name for name in criteria_names]
+                # Calculate total chart height
+                chart_height = header_height + (len(criteria_list) * (bar_height + space_between))
                 
-                # Create bars with colors based on score
-                bars = plt.barh(y_pos, scores, align='center')
+                # Check if we need a new page
+                if pdf.get_y() + chart_height > pdf.page_break_trigger:
+                    pdf.add_page()
                 
-                # Color the bars according to score value
-                for i, bar in enumerate(bars):
-                    if scores[i] >= 4:
-                        bar.set_color('#90EE90')  # Light green
-                    elif scores[i] >= 3:
-                        bar.set_color('#FFFF99')  # Light yellow
+                # Draw chart header
+                pdf.set_font('Arial', 'B', 11)
+                pdf.cell(0, 10, f"Criteria Scores for {area_info['name']}", 0, 1)
+                
+                # Draw score scale
+                pdf.set_font('Arial', '', 8)
+                scale_y = pdf.get_y()
+                pdf.set_fill_color(240, 240, 240)
+                pdf.rect(chart_x, scale_y, max_bar_width, 5, 'F')
+                
+                # Draw scale markers
+                for i in range(6):
+                    mark_x = chart_x + (i * max_bar_width / 5)
+                    pdf.line(mark_x, scale_y, mark_x, scale_y + 5)
+                    pdf.text(mark_x - 1, scale_y + 10, str(i))
+                
+                # Move below the scale
+                pdf.ln(15)
+                
+                # Draw each criterion score as a bar
+                for crit_id in criteria_list:
+                    criterion_name = area_criteria_data[crit_id]["name"]
+                    score = area_results[crit_id].get("score", 0)
+                    
+                    # Shorten long names
+                    if len(criterion_name) > 40:
+                        criterion_name = criterion_name[:37] + "..."
+                    
+                    # Draw criterion name
+                    bar_y = pdf.get_y()
+                    pdf.set_font('Arial', '', 9)
+                    pdf.set_x(chart_x)
+                    pdf.cell(0, bar_height, criterion_name, 0, 1)
+                    
+                    # Choose bar color based on score
+                    if score >= 4:
+                        pdf.set_fill_color(144, 238, 144)  # Light green
+                    elif score >= 3:
+                        pdf.set_fill_color(255, 255, 153)  # Light yellow
                     else:
-                        bar.set_color('#FFCCCC')  # Light red
+                        pdf.set_fill_color(255, 204, 203)  # Light red
+                    
+                    # Draw the bar
+                    bar_width = (score / 5) * max_bar_width
+                    pdf.rect(chart_x, bar_y, bar_width, bar_height, 'F')
+                    
+                    # Add score text
+                    pdf.set_font('Arial', 'B', 8)
+                    pdf.text(chart_x + bar_width + 5, bar_y + (bar_height/2), f"{score}/5")
+                    
+                    # Space for next bar
+                    pdf.ln(space_between)
                 
-                plt.yticks(y_pos, short_names)
-                plt.xlabel('Score')
-                plt.title(f'Criteria Scores for {area_info["name"]}')
-                plt.xlim(0, 5.5)
-                plt.tight_layout()
-                
-                # Save the chart to a BytesIO object
-                img_buffer = io.BytesIO()
-                plt.savefig(img_buffer, format='PNG', dpi=100)
-                img_buffer.seek(0)
-                plt.close()
-                
-                # Add the chart to the PDF
-                pdf.image(img_buffer, x=20, w=160)
                 pdf.ln(5)
+                
             except Exception as e:
                 # If visualization fails, just continue without the chart
                 pdf.set_font('Arial', 'I', 10)
-                pdf.cell(0, 10, "Chart visualization not available", 0, 1)
+                pdf.cell(0, 10, f"Chart visualization not available: {str(e)}", 0, 1)
             
             # Process each criterion with detailed info
             area_criteria = assessment_criteria[area_id]
