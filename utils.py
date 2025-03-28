@@ -20,59 +20,97 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 def extract_text_from_pdf(pdf_file):
     """
-    Extract text content from a PDF file.
+    Extract text content and metadata from a PDF file.
     
     Args:
         pdf_file: The uploaded PDF file object
         
     Returns:
-        str: Extracted text from the PDF
+        tuple: (extracted_text, metadata_dict)
     """
     text = ""
+    metadata = {}
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
-        for page in pdf_reader.pages:
+        metadata = {
+            'pages': len(pdf_reader.pages),
+            'title': pdf_reader.metadata.get('/Title', 'Untitled'),
+            'author': pdf_reader.metadata.get('/Author', 'Unknown'),
+            'creation_date': pdf_reader.metadata.get('/CreationDate', 'Unknown')
+        }
+        
+        for page_num, page in enumerate(pdf_reader.pages, 1):
             page_text = page.extract_text()
             if page_text:
-                text += page_text + "\n\n"
+                text += f"\n--- Page {page_num} ---\n"
+                text += page_text.strip() + "\n\n"
+            else:
+                print(f"Warning: No text extracted from page {page_num}")
+                
     except Exception as e:
+        if "File has not been decrypted" in str(e):
+            raise Exception("PDF file is encrypted and cannot be processed")
         raise Exception(f"Error extracting text from PDF: {str(e)}")
     
-    return text
+    return text, metadata
 
 def extract_text_from_docx(docx_file):
     """
-    Extract text content from a DOCX file.
+    Extract structured text content from a DOCX file.
     
     Args:
         docx_file: The uploaded DOCX file object
         
     Returns:
-        str: Extracted text from the DOCX
+        dict: Structured content from the DOCX
     """
-    text = ""
+    content = {
+        'headings': [],
+        'paragraphs': [],
+        'tables': [],
+        'metadata': {}
+    }
+    
     try:
-        # Convert file to BytesIO object
         bytes_content = BytesIO(docx_file.getvalue())
-        
-        # Open using python-docx
         doc = docx.Document(bytes_content)
         
-        # Extract text from paragraphs
+        # Extract document properties
+        content['metadata'] = {
+            'title': doc.core_properties.title or 'Untitled',
+            'author': doc.core_properties.author or 'Unknown',
+            'created': str(doc.core_properties.created or 'Unknown'),
+            'modified': str(doc.core_properties.modified or 'Unknown')
+        }
+        
+        # Process paragraphs with style information
         for para in doc.paragraphs:
-            text += para.text + "\n"
+            if para.style.name.startswith('Heading'):
+                content['headings'].append({
+                    'level': int(para.style.name[-1]),
+                    'text': para.text.strip()
+                })
+            elif para.text.strip():
+                content['paragraphs'].append({
+                    'text': para.text.strip(),
+                    'style': para.style.name
+                })
         
-        # Extract text from tables
+        # Process tables with headers
         for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    text += cell.text + " "
-                text += "\n"
-        
+            table_data = {'headers': [], 'rows': []}
+            if table.rows:
+                # Assume first row as headers
+                table_data['headers'] = [cell.text.strip() for cell in table.rows[0].cells]
+                # Rest as data
+                for row in table.rows[1:]:
+                    table_data['rows'].append([cell.text.strip() for cell in row.cells])
+            content['tables'].append(table_data)
+            
     except Exception as e:
-        raise Exception(f"Error extracting text from DOCX: {str(e)}")
+        raise Exception(f"Error extracting content from DOCX: {str(e)}")
     
-    return text
+    return content
 
 def call_openai_api(prompt, model="gpt-4o", response_format=None):
     """
@@ -186,7 +224,10 @@ def create_gauge_chart(score, title):
     
     return fig
     
-def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria, recommendations=""):
+def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", document_metadata=None):
+    """
+    Generate an enhanced PDF report with better formatting and additional metadata
+    """
     """
     Generate a PDF report of the policy assessment
     
