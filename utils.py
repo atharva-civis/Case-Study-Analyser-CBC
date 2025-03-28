@@ -347,11 +347,80 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             total_score = sum(result.get("score", 0) for result in area_results.values())
             avg_score = total_score / len(area_results) if area_results else 0
             
-            # Display area scores
+            # Display area scores in a nice box with a colored background
+            if avg_score >= 4:
+                pdf.set_fill_color(200, 255, 200)  # Light green
+            elif avg_score >= 3:
+                pdf.set_fill_color(255, 255, 200)  # Light yellow
+            else:
+                pdf.set_fill_color(255, 220, 220)  # Light red
+                
             pdf.set_font('Arial', 'B', 12)
-            pdf.cell(100, 10, f"Total Score: {total_score:.1f}", 0, 0)
-            pdf.cell(0, 10, f"Average Score: {avg_score:.2f}/5", 0, 1)
+            pdf.cell(190, 12, f"Area Scores: Total {total_score:.1f} | Average {avg_score:.2f}/5", 1, 1, 'C', True)
             pdf.ln(5)
+            
+            # Create a bar chart visualization for the PDF
+            # We have to create the chart as an image and embed it
+            import io
+            
+            try:
+                # These imports are only needed for chart generation
+                try:
+                    from matplotlib import pyplot as plt
+                    import numpy as np
+                except ImportError:
+                    # Install matplotlib and numpy if they don't exist
+                    import sys
+                    import subprocess
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "matplotlib", "numpy"])
+                    from matplotlib import pyplot as plt
+                    import numpy as np
+                
+                # Get the area criteria from the assessment criteria dictionary
+                area_criteria_data = assessment_criteria[area_id]
+                
+                # Get criteria names and scores
+                criteria_names = [area_criteria_data[crit_id]["name"] for crit_id in area_results.keys()]
+                scores = [area_results[crit_id].get("score", 0) for crit_id in area_results.keys()]
+                
+                # Create a horizontal bar chart
+                plt.figure(figsize=(6, 4))
+                y_pos = np.arange(len(criteria_names))
+                
+                # Shorten long criteria names
+                short_names = [name[:40] + '...' if len(name) > 40 else name for name in criteria_names]
+                
+                # Create bars with colors based on score
+                bars = plt.barh(y_pos, scores, align='center')
+                
+                # Color the bars according to score value
+                for i, bar in enumerate(bars):
+                    if scores[i] >= 4:
+                        bar.set_color('#90EE90')  # Light green
+                    elif scores[i] >= 3:
+                        bar.set_color('#FFFF99')  # Light yellow
+                    else:
+                        bar.set_color('#FFCCCC')  # Light red
+                
+                plt.yticks(y_pos, short_names)
+                plt.xlabel('Score')
+                plt.title(f'Criteria Scores for {area_info["name"]}')
+                plt.xlim(0, 5.5)
+                plt.tight_layout()
+                
+                # Save the chart to a BytesIO object
+                img_buffer = io.BytesIO()
+                plt.savefig(img_buffer, format='PNG', dpi=100)
+                img_buffer.seek(0)
+                plt.close()
+                
+                # Add the chart to the PDF
+                pdf.image(img_buffer, x=20, w=160)
+                pdf.ln(5)
+            except Exception as e:
+                # If visualization fails, just continue without the chart
+                pdf.set_font('Arial', 'I', 10)
+                pdf.cell(0, 10, "Chart visualization not available", 0, 1)
             
             # Process each criterion with detailed info
             area_criteria = assessment_criteria[area_id]

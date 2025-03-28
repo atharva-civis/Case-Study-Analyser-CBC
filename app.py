@@ -52,8 +52,17 @@ st.markdown("""
         border-radius: 8px;
         padding: 16px;
         margin-bottom: 16px;
-        background-color: #F9FAFB;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        background-color: #EFF6FF;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+    .criteria-heading {
+        font-weight: bold;
+        font-size: 1.1em;
+        padding: 8px;
+        margin-bottom: 12px;
+        background-color: #DBEAFE;
+        border-radius: 4px;
+        color: #1E40AF;
     }
     .metrics-container {
         display: flex;
@@ -67,13 +76,7 @@ st.markdown("""
         background-color: #F9FAFB;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    .criteria-heading {
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #1E3A8A;
-        padding-bottom: 4px;
-        border-bottom: 1px solid #E5E7EB;
-    }
+    /* Criteria heading styling defined above */
 </style>
 """, unsafe_allow_html=True)
 
