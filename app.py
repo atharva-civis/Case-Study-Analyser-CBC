@@ -342,6 +342,26 @@ if st.session_state.policy_text:
                                 <p><strong>Document Reference:</strong> {doc_ref}</p>
                             </div>
                             """, unsafe_allow_html=True)
+                    # After all criteria are shown, add recommendations section
+                    if 'recommendations' in st.session_state:
+                        st.subheader("Recommendations for Improvement")
+                        st.markdown("""
+                        <div class="card" style="background-color: #EEFCF4; padding: 20px; border-radius: 8px; border-left: 5px solid #34D399;">
+                            <h4 style="color: #047857; margin-top: 0;">Based on the assessment, we recommend the following:</h4>
+                            <div style="padding-left: 15px;">
+                        """, unsafe_allow_html=True)
+                        
+                        # Format recommendations as bullets if they contain dashes
+                        recommendations = st.session_state.recommendations
+                        if "-" in recommendations:
+                            rec_points = recommendations.split("-")
+                            for point in rec_points:
+                                if point.strip():
+                                    st.markdown(f"<p style='margin-bottom: 8px;'>• {point.strip()}</p>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<p>{recommendations}</p>", unsafe_allow_html=True)
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                 else:
                     st.info("No assessment data available for this area")
     
