@@ -563,22 +563,20 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     # Handle recommendation number formatting
                     if ':' in cleaned_part and cleaned_part.find(':') < 10:
                         num, content = cleaned_part.split(':', 1)
-                        # Draw the number in bold
+                        
+                        # Create a full recommendation text with proper formatting
                         pdf.set_font('Arial', 'B', 11)
-                        pdf.cell(25, 6, f"Recommendation {num.strip()}:", 0, 0)
+                        pdf.write(6, f"Recommendation {num.strip()}: ")
                         
-                        # Draw the content in regular font with proper wrapping
+                        # Continue the same line with regular font for content
                         pdf.set_font('Arial', '', 11)
-                        
-                        # Get the remaining width for the wrapped text
-                        content_width = pdf.w - pdf.l_margin - pdf.r_margin - 25
-                        
-                        # Handle text wrapping for the content
-                        pdf.multi_cell(content_width, 6, content.strip())
+                        pdf.multi_cell(0, 6, content.strip())
                     else:
                         # If no colon format, just print the whole thing
+                        pdf.set_font('Arial', 'B', 11)
+                        pdf.write(6, "Recommendation: ")
                         pdf.set_font('Arial', '', 11)
-                        pdf.multi_cell(0, 6, f"Recommendation {cleaned_part}")
+                        pdf.multi_cell(0, 6, cleaned_part)
                     
                     pdf.ln(4)
                     
