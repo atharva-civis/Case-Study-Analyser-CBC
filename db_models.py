@@ -1,7 +1,8 @@
 import os
 import json
+import time
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean, ForeignKey, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from passlib.hash import bcrypt_sha256
@@ -114,7 +115,7 @@ def get_db():
         try:
             db = SessionLocal()
             # Test the connection with a simple query
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             return db
         except Exception as e:
             if db:
@@ -123,7 +124,6 @@ def get_db():
             if attempt < retry_attempts - 1:
                 # Log the error and retry
                 print(f"Database connection attempt {attempt+1} failed: {str(e)}")
-                import time
                 time.sleep(retry_delay)
             else:
                 # Last attempt failed, raise the exception
