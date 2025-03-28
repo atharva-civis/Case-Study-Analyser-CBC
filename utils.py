@@ -184,7 +184,7 @@ def create_gauge_chart(score, title):
     
     return fig
     
-def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria):
+def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria, recommendations=""):
     """
     Generate a PDF report of the policy assessment
     
@@ -195,6 +195,7 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
         assessment_results (dict): Results of the assessment
         assessment_areas (dict): Assessment areas information
         assessment_criteria (dict): Assessment criteria information
+        recommendations (str, optional): Recommendations for policy improvement
         
     Returns:
         BytesIO: PDF file as BytesIO object
@@ -287,18 +288,46 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
     # Add overall score summary
     if total_criteria_count > 0:
         pdf.section_title("Assessment Summary")
+        
+        # Overall scores - both total and average
         pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, f"Overall Assessment Score: {total_overall_score / total_criteria_count:.2f}/5", 0, 1)
+        pdf.cell(100, 10, f"Overall Total Score: {total_overall_score:.1f}", 0, 0)
+        pdf.cell(0, 10, f"Overall Average Score: {total_overall_score / total_criteria_count:.2f}/5", 0, 1)
         pdf.ln(5)
         
-        # Area scores
+        # Area scores table header
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(0, 10, "Area Scores:", 0, 1)
         
-        # Score boxes for each area
+        # Create a table for area scores
+        pdf.set_fill_color(240, 240, 240)
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(100, 8, "Assessment Area", 1, 0, 'L', True)
+        pdf.cell(30, 8, "Total", 1, 0, 'C', True)
+        pdf.cell(30, 8, "Average", 1, 1, 'C', True)
+        
+        # Table rows
+        pdf.set_font('Arial', '', 10)
         for area_id, scores in overall_scores.items():
             area_name = assessment_areas[area_id]["name"]
-            pdf.add_score_box(area_name, scores["average"])
+            total = scores["total"]
+            avg = scores["average"]
+            
+            # Choose color based on average score
+            if avg >= 4:
+                pdf.set_fill_color(220, 255, 220)  # Very light green
+            elif avg >= 3:
+                pdf.set_fill_color(255, 255, 220)  # Very light yellow
+            else:
+                pdf.set_fill_color(255, 220, 220)  # Very light red
+                
+            # Long area names need to be wrapped
+            if len(area_name) > 50:
+                area_name = area_name[:47] + "..."
+                
+            pdf.cell(100, 8, area_name, 1, 0, 'L')
+            pdf.cell(30, 8, f"{total:.1f}", 1, 0, 'C')
+            pdf.cell(30, 8, f"{avg:.2f}/5", 1, 1, 'C', True)
         
         pdf.ln(10)
     
@@ -369,6 +398,28 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
         else:
             pdf.set_font('Arial', 'I', 10)
             pdf.cell(0, 10, "No assessment data available for this area", 0, 1)
+    
+    # Add recommendations section
+    if recommendations:
+        pdf.add_page()
+        pdf.section_title("Recommendations for Improvement")
+        pdf.set_font('Arial', '', 11)
+        pdf.multi_cell(0, 6, "Based on the assessment results, the following recommendations are provided to improve the policy:")
+        pdf.ln(5)
+        
+        # Format the recommendations text
+        pdf.set_font('Arial', '', 11)
+        
+        # Split recommendations by bullet points if they're in that format
+        if "•" in recommendations:
+            rec_points = recommendations.split("•")
+            for point in rec_points:
+                if point.strip():
+                    pdf.set_font('Arial', '', 11)
+                    pdf.multi_cell(0, 6, "• " + point.strip())
+                    pdf.ln(2)
+        else:
+            pdf.multi_cell(0, 6, recommendations)
     
     # Save to BytesIO
     pdf_bytes = pdf.output(dest='S')

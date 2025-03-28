@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import base64
+import json
 from io import BytesIO
 import PyPDF2
 import docx
@@ -47,12 +48,12 @@ st.markdown("""
         font-weight: bold;
     }
     .card {
-        border: 1px solid #E5E7EB;
+        border: 1px solid #D1D5DB;
         border-radius: 8px;
         padding: 16px;
         margin-bottom: 16px;
-        background-color: white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        background-color: #F9FAFB;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
     }
     .metrics-container {
         display: flex;
@@ -219,21 +220,59 @@ if st.session_state.policy_text:
         # Add export report button
         col1, col2 = st.columns([4, 1])
         with col2:
-            if st.button("Export Report as PDF"):
-                # Generate PDF report
-                pdf_file = generate_report_pdf(
+            # Generate recommendations for policy improvement
+            if 'recommendations' not in st.session_state:
+                with st.spinner("Generating recommendations..."):
+                    # Prepare data for recommendations generation
+                    low_scores = []
+                    for area_id, area_results in st.session_state.assessment_results.items():
+                        area_name = ASSESSMENT_AREAS[area_id]["name"]
+                        for criterion_id, result in area_results.items():
+                            criterion_name = ASSESSMENT_CRITERIA[area_id][criterion_id]["name"]
+                            score = result.get("score", 0)
+                            if score < 3.5:  # Focus on areas that need improvement
+                                low_scores.append({
+                                    "area": area_name,
+                                    "criterion": criterion_name,
+                                    "score": score,
+                                    "reasoning": result.get("reasoning", "")
+                                })
+                    
+                    # Generate recommendations based on low scores
+                    if low_scores:
+                        prompt = f"""
+                        Based on the policy assessment, please generate 5-8 concrete, actionable recommendations 
+                        to improve the policy draft. Focus on addressing the following areas with low scores:
+                        
+                        {json.dumps(low_scores, indent=2)}
+                        
+                        Format each recommendation as a bullet point. Make the recommendations specific, 
+                        practical, and directly tied to addressing deficiencies in the assessment.
+                        
+                        Example format:
+                        • Recommendation 1: [specific action] to address [specific issue]
+                        • Recommendation 2: [specific action] to address [specific issue]
+                        etc.
+                        """
+                        
+                        st.session_state.recommendations = call_openai_api(prompt)
+                    else:
+                        st.session_state.recommendations = "• The policy generally scores well across all assessment areas. Consider maintaining the current approach while monitoring implementation effectiveness."
+            
+            st.download_button(
+                label="Export Report as PDF",
+                data=generate_report_pdf(
                     "policy_assessment.pdf",
                     st.session_state.document_name,
                     st.session_state.policy_summary,
                     st.session_state.assessment_results,
                     ASSESSMENT_AREAS,
-                    ASSESSMENT_CRITERIA
-                )
-                # Create download link
-                st.markdown(
-                    get_download_link(pdf_file, "policy_assessment.pdf", "📥 Download PDF Report"),
-                    unsafe_allow_html=True
-                )
+                    ASSESSMENT_CRITERIA,
+                    st.session_state.get('recommendations', "No recommendations available.")
+                ),
+                file_name="policy_assessment.pdf",
+                mime="application/pdf"
+            )
         
         # Create tabs for each assessment area
         tabs = st.tabs([ASSESSMENT_AREAS[area_id]["name"] for area_id in ASSESSMENT_AREAS])
