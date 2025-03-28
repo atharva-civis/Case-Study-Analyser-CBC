@@ -281,27 +281,24 @@ if 'assessment_results' not in st.session_state:
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
 
-# Sidebar with better navigation (only for logged-in users)
+# Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
     if st.session_state.logged_in:
-        # Add sidebar navigation with better styling
-        st.markdown("### Navigation")
-        # Create navigation as buttons rather than radio buttons
+        # Simple sidebar navigation with radio buttons in a row
+        st.header("Navigation")
+        
+        # Initialize sidebar tab state if not present
         if 'sidebar_tab' not in st.session_state:
             st.session_state.sidebar_tab = "New Assessment"
-            
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📄 New Assessment", use_container_width=True, 
-                        type="primary" if st.session_state.sidebar_tab == "New Assessment" else "secondary"):
-                st.session_state.sidebar_tab = "New Assessment"
-                st.rerun()
-        with col2:
-            if st.button("📋 History", use_container_width=True,
-                        type="primary" if st.session_state.sidebar_tab == "History" else "secondary"):
-                st.session_state.sidebar_tab = "History"
-                st.rerun()
-                
+        
+        # Simple radio selection
+        sidebar_tab = st.radio("", ["New Assessment", "History"])
+        
+        # Set session state and rerun if changed
+        if sidebar_tab != st.session_state.sidebar_tab:
+            st.session_state.sidebar_tab = sidebar_tab
+            st.rerun()
+        
         st.markdown("---")
         
         if st.session_state.sidebar_tab == "New Assessment":
@@ -414,16 +411,12 @@ with st.sidebar:
                 if assessments:
                     for assessment in assessments:
                         with st.container():
-                            # Create a card with better styling for each assessment
-                            st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; background-color: #262730; margin-bottom: 10px;">
-                                <h4 style="margin-top: 0; margin-bottom: 5px;">{assessment.document_name}</h4>
-                                <p style="color: #9e9e9e; font-size: 0.8em; margin-bottom: 10px;">Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            # Simple list of assessments without custom CSS
+                            st.subheader(assessment.document_name)
+                            st.caption(f"Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}")
                             
-                            # Add Load button in the middle
-                            if st.button("📂 Load Assessment", key=f"load_{assessment.id}", use_container_width=True):
+                            # Simple load button
+                            if st.button("Load Assessment", key=f"load_{assessment.id}"):
                                 # Load assessment data into session state
                                 st.session_state.document_name = assessment.document_name
                                 st.session_state.policy_summary = assessment.policy_summary
@@ -591,7 +584,7 @@ if st.session_state.policy_text:
                     # Detailed criteria analysis
                     st.subheader("Detailed Assessment")
                     
-                    # Display each criterion in a card-like format
+                    # Display each criterion with simple formatting
                     for criterion_id, result in area_results.items():
                         criterion_name = area_criteria[criterion_id]["name"]
                         score = result.get("score", "N/A")
@@ -599,76 +592,44 @@ if st.session_state.policy_text:
                         doc_ref = result.get("document_reference", "N/A")
                         
                         with st.container():
-                            st.markdown(f"""
-                            <div class="card">
-                                <div class="criteria-heading">{criterion_name} - Score: {score}/5</div>
-                                <p><strong>Reasoning & Evidence:</strong> {reasoning}</p>
-                                <p><strong>Document Reference:</strong> {doc_ref}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.write(f"**{criterion_name} - Score: {score}/5**")
+                            st.write(f"**Reasoning & Evidence:** {reasoning}")
+                            st.write(f"**Document Reference:** {doc_ref}")
+                            st.markdown("---")
                     # After all criteria are shown, add recommendations section
                     if 'recommendations' in st.session_state:
                         st.subheader("Recommendations for Improvement")
-                        st.markdown("""
-                        <div class="card" style="background-color: #EEFCF4; padding: 20px; border-radius: 8px; border-left: 5px solid #34D399;">
-                            <h4 style="color: #047857; margin-top: 0;">Based on the assessment, we recommend the following:</h4>
-                            <div style="padding-left: 15px;">
-                        """, unsafe_allow_html=True)
+                        st.write("Based on the assessment, we recommend the following:")
                         
-                        # Format recommendations as a well-structured list
+                        # Format recommendations as a simple list
                         recommendations = st.session_state.recommendations
                         
                         # Process the recommendations text
                         if "Recommendation" in recommendations:
                             # Split by "Recommendation" and process each item
-                            cleaned_lines = []
-                            
-                            # If it starts with "Recommendation", remove any leading characters
                             if recommendations.strip().startswith("Recommendation"):
                                 parts = recommendations.split("Recommendation")
                                 for part in parts:
                                     if part.strip():
-                                        # Clean up the format, preserving sentence integrity
+                                        # Clean up the format
                                         cleaned_part = part.strip().replace('\n', ' ')
-                                        # Remove any stray bullets that might be causing breaks
-                                        cleaned_part = cleaned_part.replace('•', '')
-                                        # Remove any stray hyphens that might be causing breaks
-                                        cleaned_part = cleaned_part.replace('- ', '')
                                         
                                         # Look for colons to preserve formatting
                                         if ':' in cleaned_part and cleaned_part.find(':') < 10:
                                             num, content = cleaned_part.split(':', 1)
-                                            cleaned_lines.append(f"<strong>Recommendation {num.strip()}:</strong>{content}")
+                                            st.write(f"**Recommendation {num.strip()}:** {content.strip()}")
                                         else:
-                                            cleaned_lines.append(f"<strong>Recommendation {cleaned_part}</strong>")
-                            
-                            # Display each recommendation as a complete paragraph with proper formatting
-                            for i, line in enumerate(cleaned_lines):
-                                st.markdown(f"""
-                                <div style="display: flex; margin-bottom: 12px;">
-                                    <div style="min-width: 24px; margin-right: 8px;">•</div>
-                                    <div>{line}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                            st.write(f"**Recommendation {cleaned_part.strip()}**")
                         
                         # Fallback to regular dash-based splitting if no "Recommendation" keyword
                         elif "-" in recommendations:
                             rec_points = recommendations.split("-")
                             for point in rec_points:
                                 if point.strip():
-                                    # Clean up the recommendation text
-                                    clean_point = point.strip().replace('\n', ' ')
-                                    st.markdown(f"""
-                                    <div style="display: flex; margin-bottom: 12px;">
-                                        <div style="min-width: 24px; margin-right: 8px;">•</div>
-                                        <div>{clean_point}</div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    st.write(f"- {point.strip()}")
                         else:
                             # Just show as regular text if no structured format detected
-                            st.markdown(f"<p>{recommendations}</p>", unsafe_allow_html=True)
-                        
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                            st.write(recommendations)
                 else:
                     st.info("No assessment data available for this area")
     

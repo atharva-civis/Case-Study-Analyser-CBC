@@ -114,18 +114,24 @@ def register_user(username, email, password):
 
 def authenticate_user(username, password):
     """Authenticate a user with username and password"""
-    db = get_db()
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        db.close()
-        return False, "Invalid username or password"
-    
-    if not User.verify_password(password, user.hashed_password):
-        db.close()
-        return False, "Invalid username or password"
-    
-    db.close()
-    return True, user
+    try:
+        db = get_db()
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            return False, "Invalid username or password"
+        
+        if not User.verify_password(password, user.hashed_password):
+            return False, "Invalid username or password"
+        
+        return True, user
+    except Exception as e:
+        # Handle database connection errors gracefully
+        print(f"Database authentication error: {str(e)}")
+        return False, "Database connection error. Please try again."
+    finally:
+        # Ensure db is always closed
+        if 'db' in locals():
+            db.close()
 
 def save_assessment(user_id, document_name, policy_summary, assessment_results, recommendations):
     """Save assessment results to history"""
