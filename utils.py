@@ -212,82 +212,163 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             self.set_font('Arial', 'I', 8)
             date = datetime.datetime.now().strftime("%Y-%m-%d")
             self.cell(0, 10, f'Generated on {date} - Page {self.page_no()}', 0, 0, 'C')
+        
+        def section_title(self, title):
+            # Add a section title
+            self.set_font('Arial', 'B', 14)
+            self.set_fill_color(230, 230, 250)  # Light purple background
+            self.cell(0, 10, title, 0, 1, 'L', True)
+            self.ln(5)
+        
+        def sub_section_title(self, title):
+            # Add a subsection title
+            self.set_font('Arial', 'B', 12)
+            self.cell(0, 10, title, 0, 1, 'L')
+            self.ln(2)
+        
+        def add_score_box(self, label, score, max_score=5):
+            # Create a visual score box
+            self.set_fill_color(240, 240, 240)
+            self.set_font('Arial', 'B', 10)
+            self.cell(40, 10, label, 1, 0, 'L')
+            
+            # Choose color based on score
+            if score >= 4:
+                self.set_fill_color(144, 238, 144)  # Light green
+            elif score >= 3:
+                self.set_fill_color(255, 255, 153)  # Light yellow
+            else:
+                self.set_fill_color(255, 204, 203)  # Light red
+                
+            self.cell(20, 10, f"{score:.1f}/{max_score}", 1, 1, 'C', True)
+            self.ln(1)
     
     # Create PDF object
     pdf = PDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Document information
+    # Cover page with title and document info
+    pdf.set_font('Arial', 'B', 20)
+    pdf.cell(0, 20, 'Policy Assessment Report', 0, 1, 'C')
+    pdf.ln(10)
+    
     pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, f"Document: {policy_name}", 0, 1)
-    pdf.ln(2)
+    pdf.cell(0, 10, f"Document: {policy_name}", 0, 1, 'C')
+    pdf.ln(10)
     
-    # Summary section
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, "Policy Summary", 0, 1)
     pdf.set_font('Arial', '', 10)
+    pdf.cell(0, 10, f"Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, 'C')
     
-    # Add summary text with word wrapping
+    # Executive summary page
+    pdf.add_page()
+    pdf.section_title("Executive Summary")
+    pdf.set_font('Arial', '', 11)
     pdf.multi_cell(0, 6, policy_summary)
     pdf.ln(5)
     
-    # Assessment Results
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, "Assessment Results", 0, 1)
+    # Calculate overall scores
+    overall_scores = {}
+    total_overall_score = 0
+    total_criteria_count = 0
     
-    # Process each assessment area
-    for area_id, area_info in assessment_areas.items():
+    for area_id, area_results in assessment_results.items():
+        if area_results:
+            area_total = sum(result.get("score", 0) for result in area_results.values())
+            area_avg = area_total / len(area_results)
+            overall_scores[area_id] = {
+                "total": area_total,
+                "average": area_avg,
+                "count": len(area_results)
+            }
+            total_overall_score += area_total
+            total_criteria_count += len(area_results)
+    
+    # Add overall score summary
+    if total_criteria_count > 0:
+        pdf.section_title("Assessment Summary")
         pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 10, area_info["name"], 0, 1)
-        pdf.set_font('Arial', 'I', 10)
+        pdf.cell(0, 10, f"Overall Assessment Score: {total_overall_score / total_criteria_count:.2f}/5", 0, 1)
+        pdf.ln(5)
+        
+        # Area scores
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 10, "Area Scores:", 0, 1)
+        
+        # Score boxes for each area
+        for area_id, scores in overall_scores.items():
+            area_name = assessment_areas[area_id]["name"]
+            pdf.add_score_box(area_name, scores["average"])
+        
+        pdf.ln(10)
+    
+    # Detailed assessment by area
+    for area_id, area_info in assessment_areas.items():
+        pdf.add_page()
+        pdf.section_title(f"Area Assessment: {area_info['name']}")
+        
+        pdf.set_font('Arial', '', 10)
         pdf.multi_cell(0, 5, area_info["description"])
-        pdf.ln(2)
+        pdf.ln(5)
         
         if area_id in assessment_results:
-            # Calculate total and average scores
             area_results = assessment_results[area_id]
+            
+            # Calculate scores
             total_score = sum(result.get("score", 0) for result in area_results.values())
             avg_score = total_score / len(area_results) if area_results else 0
             
-            pdf.set_font('Arial', 'B', 10)
-            pdf.cell(0, 8, f"Total Score: {total_score:.1f} | Average Score: {avg_score:.2f}/5", 0, 1)
-            pdf.ln(2)
+            # Display area scores
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(100, 10, f"Total Score: {total_score:.1f}", 0, 0)
+            pdf.cell(0, 10, f"Average Score: {avg_score:.2f}/5", 0, 1)
+            pdf.ln(5)
             
-            # Process each criterion
+            # Process each criterion with detailed info
             area_criteria = assessment_criteria[area_id]
             
-            # Table header
-            pdf.set_fill_color(240, 240, 240)
-            pdf.set_font('Arial', 'B', 10)
-            pdf.cell(50, 8, "Criteria", 1, 0, 'L', True)
-            pdf.cell(20, 8, "Score", 1, 0, 'C', True)
-            pdf.cell(120, 8, "Reasoning", 1, 1, 'L', True)
+            pdf.sub_section_title("Detailed Criteria Assessment")
             
-            # Table content
-            pdf.set_font('Arial', '', 9)
             for criterion_id, result in area_results.items():
                 criterion_name = area_criteria[criterion_id]["name"]
-                score = result.get("score", "N/A")
-                reasoning = result.get("reasoning", "N/A")
+                score = result.get("score", 0)
+                reasoning = result.get("reasoning", "No reasoning provided")
+                doc_ref = result.get("document_reference", "No references provided")
                 
-                # Criteria name
-                pdf.cell(50, 10, criterion_name, 1, 0)
-                # Score
-                pdf.cell(20, 10, f"{score}", 1, 0, 'C')
+                # Criterion header with box
+                pdf.set_draw_color(100, 100, 100)
+                pdf.set_fill_color(240, 248, 255)  # Light blue background
+                pdf.set_font('Arial', 'B', 11)
+                pdf.cell(0, 8, f"{criterion_name}", 1, 1, 'L', True)
                 
-                # Calculate remaining height needed for reasoning
-                current_y = pdf.get_y()
-                pdf.multi_cell(120, 10, reasoning, 1, 'L')
-                pdf.set_y(pdf.get_y())
+                # Score with colored box
+                if score >= 4:
+                    pdf.set_fill_color(144, 238, 144)  # Light green
+                elif score >= 3:
+                    pdf.set_fill_color(255, 255, 153)  # Light yellow
+                else:
+                    pdf.set_fill_color(255, 204, 203)  # Light red
                 
-            pdf.ln(5)
+                pdf.set_font('Arial', 'B', 10)
+                pdf.cell(30, 8, "Score:", 0, 0)
+                pdf.cell(20, 8, f"{score}/5", 1, 1, 'C', True)
+                
+                # Reasoning
+                pdf.set_font('Arial', 'B', 10)
+                pdf.cell(0, 8, "Reasoning & Evidence:", 0, 1)
+                pdf.set_font('Arial', '', 10)
+                pdf.multi_cell(0, 6, reasoning)
+                
+                # Document references
+                pdf.set_font('Arial', 'B', 10)
+                pdf.cell(0, 8, "Document References:", 0, 1)
+                pdf.set_font('Arial', 'I', 9)
+                pdf.multi_cell(0, 6, doc_ref)
+                
+                pdf.ln(5)
         else:
             pdf.set_font('Arial', 'I', 10)
             pdf.cell(0, 10, "No assessment data available for this area", 0, 1)
-        
-        # Add page break between areas
-        pdf.add_page()
     
     # Save to BytesIO
     pdf_bytes = pdf.output(dest='S')

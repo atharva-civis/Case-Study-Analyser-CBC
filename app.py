@@ -33,15 +33,18 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: #F3F4F6;
+        background-color: #E5E7EB;
         border-radius: 4px 4px 0px 0px;
         gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
+        color: #1F2937;
+        font-weight: 500;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #DBEAFE;
-        color: #1E40AF;
+        background-color: #3B82F6;
+        color: white;
+        font-weight: bold;
     }
     .card {
         border: 1px solid #E5E7EB;
