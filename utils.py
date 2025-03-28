@@ -546,27 +546,69 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
         pdf.multi_cell(0, 6, "Based on the assessment results, the following recommendations are provided to improve the policy:")
         pdf.ln(5)
         
-        # Format the recommendations text
+        # Format the recommendations text - improved handling
         pdf.set_font('Arial', '', 11)
         
-        # Split recommendations by dash list items or bullet points
-        if "-" in recommendations:
+        # Process recommendations with Recommendation X: format
+        if "Recommendation" in recommendations:
+            # Split by "Recommendation" and process each item
+            parts = recommendations.split("Recommendation")
+            for part in parts:
+                if part.strip():
+                    # Clean up the format, preserving sentence integrity
+                    cleaned_part = part.strip().replace('\n', ' ')
+                    # Remove any stray bullets or formatting that might be causing breaks
+                    cleaned_part = cleaned_part.replace('•', '').replace('- ', '')
+                    
+                    # Handle recommendation number formatting
+                    if ':' in cleaned_part and cleaned_part.find(':') < 10:
+                        num, content = cleaned_part.split(':', 1)
+                        # Draw the number in bold
+                        pdf.set_font('Arial', 'B', 11)
+                        pdf.cell(25, 6, f"Recommendation {num.strip()}:", 0, 0)
+                        
+                        # Draw the content in regular font with proper wrapping
+                        pdf.set_font('Arial', '', 11)
+                        
+                        # Get the remaining width for the wrapped text
+                        content_width = pdf.w - pdf.l_margin - pdf.r_margin - 25
+                        
+                        # Handle text wrapping for the content
+                        pdf.multi_cell(content_width, 6, content.strip())
+                    else:
+                        # If no colon format, just print the whole thing
+                        pdf.set_font('Arial', '', 11)
+                        pdf.multi_cell(0, 6, f"Recommendation {cleaned_part}")
+                    
+                    pdf.ln(4)
+                    
+        # Split recommendations by dash list items as a fallback
+        elif "-" in recommendations:
             rec_points = recommendations.split("-")
             for point in rec_points:
                 if point.strip():
+                    # Clean up and replace newlines with spaces for continuous text
+                    clean_point = point.strip().replace('\n', ' ')
                     pdf.set_font('Arial', '', 11)
-                    pdf.multi_cell(0, 6, "- " + point.strip())
+                    # Use bullet point symbol with proper indentation
+                    pdf.cell(5, 6, "•", 0, 0)
+                    pdf.multi_cell(0, 6, clean_point)
                     pdf.ln(2)
-        # Fallback in case bullet points are still used
+        # Fallback in case bullet points are used
         elif "•" in recommendations:
             rec_points = recommendations.split("•")
             for point in rec_points:
                 if point.strip():
+                    # Clean up and replace newlines with spaces for continuous text
+                    clean_point = point.strip().replace('\n', ' ')
                     pdf.set_font('Arial', '', 11)
-                    pdf.multi_cell(0, 6, "- " + point.strip())
+                    # Use bullet point symbol with proper indentation
+                    pdf.cell(5, 6, "•", 0, 0)
+                    pdf.multi_cell(0, 6, clean_point)
                     pdf.ln(2)
         else:
-            pdf.multi_cell(0, 6, recommendations)
+            # Just show as regular text if no structured format detected
+            pdf.multi_cell(0, 6, recommendations.replace('\n', ' '))
     
     # Save to BytesIO
     pdf_bytes = pdf.output(dest='S')

@@ -250,13 +250,21 @@ if st.session_state.policy_text:
                         
                         {json.dumps(low_scores, indent=2)}
                         
-                        Format each recommendation as a dash list item. Make the recommendations specific, 
-                        practical, and directly tied to addressing deficiencies in the assessment.
+                        Format each recommendation as a numbered entry starting with "Recommendation 1:", 
+                        "Recommendation 2:", etc. Each recommendation should be a complete, self-contained 
+                        paragraph without line breaks or bullets in the middle of sentences.
+                        
+                        Your recommendations should be:
+                        1. Specific and actionable
+                        2. Practical to implement
+                        3. Directly address deficiencies identified in the assessment
+                        4. Written in complete sentences with proper punctuation
+                        5. Free of any hyphens, bullets, or line breaks within each recommendation
                         
                         Example format:
-                        - Recommendation 1: [specific action] to address [specific issue]
-                        - Recommendation 2: [specific action] to address [specific issue]
-                        etc.
+                        Recommendation 1: [Complete sentence describing specific action] to address [specific issue]. The recommendation should include enough detail to be actionable but be contained in a single complete paragraph.
+                        
+                        Recommendation 2: [Complete sentence describing another specific action] to address [another specific issue]. Keep this as a single continuous paragraph without any internal formatting or line breaks.
                         """
                         
                         st.session_state.recommendations = call_openai_api(prompt)
@@ -351,14 +359,57 @@ if st.session_state.policy_text:
                             <div style="padding-left: 15px;">
                         """, unsafe_allow_html=True)
                         
-                        # Format recommendations as bullets if they contain dashes
+                        # Format recommendations as a well-structured list
                         recommendations = st.session_state.recommendations
-                        if "-" in recommendations:
+                        
+                        # Process the recommendations text
+                        if "Recommendation" in recommendations:
+                            # Split by "Recommendation" and process each item
+                            cleaned_lines = []
+                            
+                            # If it starts with "Recommendation", remove any leading characters
+                            if recommendations.strip().startswith("Recommendation"):
+                                parts = recommendations.split("Recommendation")
+                                for part in parts:
+                                    if part.strip():
+                                        # Clean up the format, preserving sentence integrity
+                                        cleaned_part = part.strip().replace('\n', ' ')
+                                        # Remove any stray bullets that might be causing breaks
+                                        cleaned_part = cleaned_part.replace('•', '')
+                                        # Remove any stray hyphens that might be causing breaks
+                                        cleaned_part = cleaned_part.replace('- ', '')
+                                        
+                                        # Look for colons to preserve formatting
+                                        if ':' in cleaned_part and cleaned_part.find(':') < 10:
+                                            num, content = cleaned_part.split(':', 1)
+                                            cleaned_lines.append(f"<strong>Recommendation {num.strip()}:</strong>{content}")
+                                        else:
+                                            cleaned_lines.append(f"<strong>Recommendation {cleaned_part}</strong>")
+                            
+                            # Display each recommendation as a complete paragraph with proper formatting
+                            for i, line in enumerate(cleaned_lines):
+                                st.markdown(f"""
+                                <div style="display: flex; margin-bottom: 12px;">
+                                    <div style="min-width: 24px; margin-right: 8px;">•</div>
+                                    <div>{line}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                        
+                        # Fallback to regular dash-based splitting if no "Recommendation" keyword
+                        elif "-" in recommendations:
                             rec_points = recommendations.split("-")
                             for point in rec_points:
                                 if point.strip():
-                                    st.markdown(f"<p style='margin-bottom: 8px;'>• {point.strip()}</p>", unsafe_allow_html=True)
+                                    # Clean up the recommendation text
+                                    clean_point = point.strip().replace('\n', ' ')
+                                    st.markdown(f"""
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <div style="min-width: 24px; margin-right: 8px;">•</div>
+                                        <div>{clean_point}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                         else:
+                            # Just show as regular text if no structured format detected
                             st.markdown(f"<p>{recommendations}</p>", unsafe_allow_html=True)
                         
                         st.markdown("</div></div>", unsafe_allow_html=True)
