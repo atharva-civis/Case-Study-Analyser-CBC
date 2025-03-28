@@ -32,16 +32,26 @@ st.set_page_config(
 # Custom CSS to improve the appearance
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Poppins', sans-serif !important;
+    }
+    
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
+    
     h1, h2, h3 {
         color: #1E3A8A;
+        font-family: 'Poppins', sans-serif !important;
     }
+    
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
     }
+    
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
@@ -52,11 +62,22 @@ st.markdown("""
         padding-bottom: 10px;
         color: #1F2937;
         font-weight: 500;
+        font-family: 'Poppins', sans-serif !important;
     }
+    
     .stTabs [aria-selected="true"] {
         background-color: #3B82F6;
         color: white;
         font-weight: bold;
+    }
+    
+    .stTextInput, .stButton, .stSelectbox {
+        font-family: 'Poppins', sans-serif !important;
+    }
+    
+    /* Make sure all text elements use Poppins */
+    p, span, div, label, button, select, input, textarea {
+        font-family: 'Poppins', sans-serif !important;
     }
     .card {
         border: 1px solid #D1D5DB;
