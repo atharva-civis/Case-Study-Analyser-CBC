@@ -8,8 +8,19 @@ import json
 from io import BytesIO
 import PyPDF2
 import docx
+from datetime import datetime, timedelta
 from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA
+from db_models import (
+    initialize_session_state, 
+    register_user, 
+    authenticate_user, 
+    login_user, 
+    logout_user, 
+    save_assessment,
+    get_user_assessments,
+    get_assessment
+)
 
 # Set page configuration
 st.set_page_config(
@@ -77,19 +88,200 @@ st.markdown("""
         background-color: #F9FAFB;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    /* Criteria heading styling defined above */
+    /* Auth form styling */
+    .auth-form {
+        max-width: 450px;
+        margin: 0 auto;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        background-color: #F9FAFB;
+    }
+    .auth-form h3 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #1E3A8A;
+    }
+    .auth-form .stButton>button {
+        width: 100%;
+        margin-top: 10px;
+    }
+    /* History card styling */
+    .history-card {
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background-color: white;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .history-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .history-card h4 {
+        margin-top: 0;
+        color: #1E3A8A;
+    }
+    .history-card p {
+        margin-bottom: 5px;
+        color: #4B5563;
+    }
+    .history-card .date {
+        color: #6B7280;
+        font-size: 0.9em;
+    }
+    /* User profile section */
+    .user-profile {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 10px;
+        background-color: #F0F9FF;
+        border-radius: 8px;
+    }
+    .user-profile .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #3B82F6;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    .user-profile .info {
+        flex-grow: 1;
+    }
+    .user-profile .info p {
+        margin: 0;
+    }
+    .user-profile .actions {
+        margin-left: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Application title and description
-st.title("Policy Insight Generator")
-st.markdown("""
-This tool helps analyze policy documents against structured assessment criteria.
-Upload your policy document, and the AI will evaluate it based on three key assessment areas:
-1. Does the Draft Clearly Explain Why and What?
-2. Does the Draft Thoroughly Assess the Impact?
-3. Does the Draft Enable Meaningful Public Participation?
-""")
+# Initialize session state for authentication
+initialize_session_state()
+
+# Authentication and user management
+def show_login_page():
+    st.markdown('<div class="auth-form">', unsafe_allow_html=True)
+    st.subheader("Login to Your Account")
+    
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Login"):
+            if username and password:
+                success, user = authenticate_user(username, password)
+                if success:
+                    login_user(user)
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.error(user)  # Error message
+            else:
+                st.warning("Please enter both username and password")
+    
+    with col2:
+        if st.button("Register"):
+            st.session_state.show_register = True
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def show_register_page():
+    st.markdown('<div class="auth-form">', unsafe_allow_html=True)
+    st.subheader("Create a New Account")
+    
+    username = st.text_input("Username")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    confirm_password = st.text_input("Confirm Password", type="password")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Register"):
+            if not username or not email or not password:
+                st.warning("Please fill in all fields")
+            elif password != confirm_password:
+                st.error("Passwords do not match")
+            else:
+                success, message = register_user(username, email, password)
+                if success:
+                    st.success(message)
+                    st.session_state.show_register = False
+                    st.rerun()
+                else:
+                    st.error(message)
+    
+    with col2:
+        if st.button("Back to Login"):
+            st.session_state.show_register = False
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Show appropriate authentication page or main app
+if not st.session_state.logged_in:
+    # Application title
+    st.title("Policy Insight Generator")
+    
+    # Show register or login page
+    if st.session_state.get('show_register', False):
+        show_register_page()
+    else:
+        show_login_page()
+        
+else:
+    # Application title and description for logged-in users
+    st.title("Policy Insight Generator")
+    
+    # User profile section
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("""
+        This tool helps analyze policy documents against structured assessment criteria.
+        Upload your policy document, and the AI will evaluate it based on three key assessment areas:
+        1. Does the Draft Clearly Explain Why and What?
+        2. Does the Draft Thoroughly Assess the Impact?
+        3. Does the Draft Enable Meaningful Public Participation?
+        """)
+    
+    with col2:
+        # User profile
+        st.markdown(f"""
+        <div class="user-profile">
+            <div class="avatar">{st.session_state.username[0].upper()}</div>
+            <div class="info">
+                <p><strong>{st.session_state.username}</strong></p>
+            </div>
+            <div class="actions">
+                {'<a href="#" id="logout">Logout</a>' if st.session_state.logged_in else ''}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Handle logout with JavaScript
+        st.markdown("""
+        <script>
+            document.querySelector('#logout').addEventListener('click', function() {
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'logout'}, '*');
+            });
+        </script>
+        """, unsafe_allow_html=True)
+        
+        # Check for logout action
+        logout_action = st.text_input("", key="logout_action", label_visibility="collapsed")
+        if logout_action == "logout":
+            logout_user()
+            st.rerun()
 
 # Initialize session state variables if they don't exist
 if 'policy_text' not in st.session_state:
@@ -103,106 +295,149 @@ if 'assessment_results' not in st.session_state:
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
 
-# Sidebar for file upload and actions
+# Sidebar with tabs for navigation (only for logged-in users)
 with st.sidebar:
-    st.header("Upload Policy Document")
-    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
-    
-    if uploaded_file is not None:
-        st.session_state.document_name = uploaded_file.name
+    if st.session_state.logged_in:
+        # Add sidebar tabs for navigation
+        tab_titles = ["New Assessment", "History"]
+        sidebar_tabs = st.radio("Navigation", tab_titles)
         
-        # Process the uploaded file
-        try:
-            if uploaded_file.type == "application/pdf":
-                st.session_state.policy_text = extract_text_from_pdf(uploaded_file)
-            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                st.session_state.policy_text = extract_text_from_docx(uploaded_file)
+        if sidebar_tabs == "New Assessment":
+            st.header("Upload Policy Document")
+            uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
             
-            st.success(f"Successfully processed {uploaded_file.name}")
-            
-            # Display text length information
-            text_length = len(st.session_state.policy_text)
-            st.info(f"Extracted {text_length} characters from document")
-            
-        except Exception as e:
-            st.error(f"Error processing document: {str(e)}")
-    
-    # Action buttons
-    st.subheader("Analysis Actions")
-    
-    if st.session_state.policy_text:
-        if st.button("Generate Summary"):
-            with st.spinner("Generating policy summary..."):
-                prompt = f"""
-                Please provide a concise summary of the following policy document. 
-                Focus on the main objectives, key provisions, and policy intent:
+            if uploaded_file is not None:
+                st.session_state.document_name = uploaded_file.name
                 
-                {st.session_state.policy_text[:4000]}  # Limit text length to avoid token limits
-                """
-                
-                st.session_state.policy_summary = call_openai_api(prompt)
-        
-        if st.button("Perform Full Assessment"):
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
+                # Process the uploaded file
+                try:
+                    if uploaded_file.type == "application/pdf":
+                        st.session_state.policy_text = extract_text_from_pdf(uploaded_file)
+                    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        st.session_state.policy_text = extract_text_from_docx(uploaded_file)
+                    
+                    st.success(f"Successfully processed {uploaded_file.name}")
+                    
+                    # Display text length information
+                    text_length = len(st.session_state.policy_text)
+                    st.info(f"Extracted {text_length} characters from document")
+                    
+                except Exception as e:
+                    st.error(f"Error processing document: {str(e)}")
             
-            st.session_state.assessment_results = {}
+            # Action buttons
+            st.subheader("Analysis Actions")
             
-            # Count total criteria for progress tracking
-            total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS)
-            processed_criteria = 0
-            
-            # Process each assessment area
-            for area_id, area_info in ASSESSMENT_AREAS.items():
-                progress_text.text(f"Analyzing: {area_info['name']}")
-                criteria = ASSESSMENT_CRITERIA[area_id]
-                
-                st.session_state.assessment_results[area_id] = {}
-                
-                # Process each criterion in this area (one at a time)
-                for criterion_id, criterion_info in criteria.items():
-                    criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
-                    progress_text.text(criterion_progress)
-                    
-                    prompt = f"""
-                    You are a policy analysis expert. Please evaluate the following policy document 
-                    against this specific criterion: "{criterion_info['description']}"
-                    
-                    Policy Document:
-                    {st.session_state.policy_text[:4000]}  # Limit text length
-                    
-                    Provide an analysis with the following JSON structure:
-                    {{
-                        "score": [a number between 1 and 5, where 1 is poor and 5 is excellent],
-                        "reasoning": [detailed explanation of why this score was given as a single string, not a list],
-                        "document_reference": [specific sections or content from the document that supports this assessment as a single string, not a list]
-                    }}
-                    
-                    Ensure that ALL fields (score, reasoning, document_reference) are provided and that reasoning and document_reference are STRINGS, not lists or arrays.
-                    
-                    Base your evaluation on how well the document addresses this criterion.
-                    """
-                    
-                    with st.spinner(f"Analyzing {criterion_info['name']}..."):
-                        result = call_openai_api(prompt, response_format="json_object")
+            if st.session_state.policy_text:
+                if st.button("Generate Summary"):
+                    with st.spinner("Generating policy summary..."):
+                        prompt = f"""
+                        Please provide a concise summary of the following policy document. 
+                        Focus on the main objectives, key provisions, and policy intent:
                         
-                        # Ensure consistent data types - convert any lists to strings
-                        if isinstance(result.get("reasoning"), list):
-                            result["reasoning"] = ". ".join(result["reasoning"])
-                        if isinstance(result.get("document_reference"), list):
-                            result["document_reference"] = ". ".join(result["document_reference"])
+                        {st.session_state.policy_text[:4000]}  # Limit text length to avoid token limits
+                        """
                         
-                        st.session_state.assessment_results[area_id][criterion_id] = result
+                        st.session_state.policy_summary = call_openai_api(prompt)
+                
+                if st.button("Perform Full Assessment"):
+                    progress_text = st.empty()
+                    progress_bar = st.progress(0)
                     
-                    # Update progress
-                    processed_criteria += 1
-                    progress_bar.progress(processed_criteria / total_criteria)
+                    st.session_state.assessment_results = {}
+                    
+                    # Count total criteria for progress tracking
+                    total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS)
+                    processed_criteria = 0
+                    
+                    # Process each assessment area
+                    for area_id, area_info in ASSESSMENT_AREAS.items():
+                        progress_text.text(f"Analyzing: {area_info['name']}")
+                        criteria = ASSESSMENT_CRITERIA[area_id]
+                        
+                        st.session_state.assessment_results[area_id] = {}
+                        
+                        # Process each criterion in this area (one at a time)
+                        for criterion_id, criterion_info in criteria.items():
+                            criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
+                            progress_text.text(criterion_progress)
+                            
+                            prompt = f"""
+                            You are a policy analysis expert. Please evaluate the following policy document 
+                            against this specific criterion: "{criterion_info['description']}"
+                            
+                            Policy Document:
+                            {st.session_state.policy_text[:4000]}  # Limit text length
+                            
+                            Provide an analysis with the following JSON structure:
+                            {{
+                                "score": [a number between 1 and 5, where 1 is poor and 5 is excellent],
+                                "reasoning": [detailed explanation of why this score was given as a single string, not a list],
+                                "document_reference": [specific sections or content from the document that supports this assessment as a single string, not a list]
+                            }}
+                            
+                            Ensure that ALL fields (score, reasoning, document_reference) are provided and that reasoning and document_reference are STRINGS, not lists or arrays.
+                            
+                            Base your evaluation on how well the document addresses this criterion.
+                            """
+                            
+                            with st.spinner(f"Analyzing {criterion_info['name']}..."):
+                                result = call_openai_api(prompt, response_format="json_object")
+                                
+                                # Ensure consistent data types - convert any lists to strings
+                                if isinstance(result.get("reasoning"), list):
+                                    result["reasoning"] = ". ".join(result["reasoning"])
+                                if isinstance(result.get("document_reference"), list):
+                                    result["document_reference"] = ". ".join(result["document_reference"])
+                                
+                                st.session_state.assessment_results[area_id][criterion_id] = result
+                            
+                            # Update progress
+                            processed_criteria += 1
+                            progress_bar.progress(processed_criteria / total_criteria)
+                    
+                    progress_text.text("Assessment complete!")
+                    progress_bar.progress(100)
+                    st.success("Policy assessment completed successfully!")
+            else:
+                st.info("Please upload a document first")
+                
+        elif sidebar_tabs == "History":
+            st.header("Assessment History")
             
-            progress_text.text("Assessment complete!")
-            progress_bar.progress(100)
-            st.success("Policy assessment completed successfully!")
+            if st.session_state.user_id:
+                # Get user's assessment history
+                assessments = get_user_assessments(st.session_state.user_id)
+                
+                if assessments:
+                    for assessment in assessments:
+                        with st.container():
+                            st.markdown(f"""
+                            <div class="history-card">
+                                <h4>{assessment.document_name}</h4>
+                                <p class="date">Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            col1, col2 = st.columns([4, 1])
+                            with col2:
+                                if st.button("Load", key=f"load_{assessment.id}"):
+                                    # Load assessment data into session state
+                                    st.session_state.document_name = assessment.document_name
+                                    st.session_state.policy_summary = assessment.policy_summary
+                                    st.session_state.assessment_results = assessment.get_results_dict()
+                                    st.session_state.recommendations = assessment.recommendations
+                                    st.session_state.policy_text = "Loaded from history"  # Placeholder for text
+                                    
+                                    # Switch to New Assessment tab
+                                    st.session_state.sidebar_tab = "New Assessment"
+                                    st.rerun()
+                else:
+                    st.info("No assessment history found. Complete an assessment to save it to your history.")
     else:
-        st.info("Please upload a document first")
+        # For non-logged in users, show basic upload
+        st.header("Upload Policy Document")
+        st.info("Please login to use the policy assessment tool.")
 
 # Main content area
 if st.session_state.policy_text:
@@ -271,6 +506,23 @@ if st.session_state.policy_text:
                     else:
                         st.session_state.recommendations = "- The policy generally scores well across all assessment areas. Consider maintaining the current approach while monitoring implementation effectiveness."
             
+            # Save to history button (only shown to logged-in users)
+            if st.session_state.logged_in:
+                if st.button("Save to History"):
+                    if st.session_state.user_id:
+                        # Save assessment to database
+                        assessment_id = save_assessment(
+                            user_id=st.session_state.user_id,
+                            document_name=st.session_state.document_name,
+                            policy_summary=st.session_state.policy_summary,
+                            assessment_results=st.session_state.assessment_results,
+                            recommendations=st.session_state.get('recommendations', "No recommendations available.")
+                        )
+                        st.success(f"Assessment saved to your history!")
+                    else:
+                        st.error("Error saving assessment. Please try again.")
+            
+            # Export as PDF button
             st.download_button(
                 label="Export Report as PDF",
                 data=generate_report_pdf(
