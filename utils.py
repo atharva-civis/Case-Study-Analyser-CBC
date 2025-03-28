@@ -373,12 +373,12 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 criteria_list.sort()  # Sort for consistent order
                 
                 # Set up the chart dimensions
-                chart_x = 25  # Starting X position
+                chart_x = 40  # Starting X position
                 chart_width = 160  # Width of chart area
-                bar_height = 10  # Height of each bar
-                max_bar_width = 120  # Maximum width of bars at score 5
+                bar_height = 8  # Height of each bar
+                max_bar_width = 100  # Maximum width of bars at score 5
                 header_height = 20  # Height for headers
-                space_between = 8  # Space between bars
+                space_between = 14  # Space between bars
                 
                 # Calculate total chart height
                 chart_height = header_height + (len(criteria_list) * (bar_height + space_between))
@@ -391,17 +391,48 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 pdf.set_font('Arial', 'B', 11)
                 pdf.cell(0, 10, f"Criteria Scores for {area_info['name']}", 0, 1)
                 
-                # Draw score scale
-                pdf.set_font('Arial', '', 8)
+                # Draw the scale as a color gradient
+                pdf.set_font('Arial', 'B', 8)
                 scale_y = pdf.get_y()
-                pdf.set_fill_color(240, 240, 240)
-                pdf.rect(chart_x, scale_y, max_bar_width, 5, 'F')
+                
+                # Create a label for the scale
+                pdf.text(chart_x - 35, scale_y + 3, "Score Scale:")
+                
+                # Draw colored segments for the scale
+                segment_width = max_bar_width / 5
+                
+                # First segment (1) - Red
+                pdf.set_fill_color(255, 204, 203)  # Light red
+                pdf.rect(chart_x, scale_y, segment_width, 6, 'F')
+                
+                # Second segment (2) - Light red-orange
+                pdf.set_fill_color(255, 229, 204)
+                pdf.rect(chart_x + segment_width, scale_y, segment_width, 6, 'F')
+                
+                # Third segment (3) - Yellow
+                pdf.set_fill_color(255, 255, 153)  # Light yellow
+                pdf.rect(chart_x + 2*segment_width, scale_y, segment_width, 6, 'F')
+                
+                # Fourth segment (4) - Light yellow-green
+                pdf.set_fill_color(229, 255, 204)
+                pdf.rect(chart_x + 3*segment_width, scale_y, segment_width, 6, 'F')
+                
+                # Fifth segment (5) - Green
+                pdf.set_fill_color(144, 238, 144)  # Light green
+                pdf.rect(chart_x + 4*segment_width, scale_y, segment_width, 6, 'F')
+                
+                # Add a border around the scale
+                pdf.set_draw_color(0, 0, 0)  # Black
+                pdf.rect(chart_x, scale_y, max_bar_width, 6, 'D')
                 
                 # Draw scale markers
+                pdf.set_font('Arial', '', 7)
                 for i in range(6):
-                    mark_x = chart_x + (i * max_bar_width / 5)
-                    pdf.line(mark_x, scale_y, mark_x, scale_y + 5)
-                    pdf.text(mark_x - 1, scale_y + 10, str(i))
+                    mark_x = chart_x + (i * segment_width)
+                    if i > 0:  # Skip the first vertical line (position 0)
+                        pdf.line(mark_x, scale_y, mark_x, scale_y + 6)
+                    # Place numbers below the scale
+                    pdf.text(mark_x - 1 if i > 0 else mark_x, scale_y + 10, str(i))
                 
                 # Move below the scale
                 pdf.ln(15)
@@ -411,15 +442,24 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     criterion_name = area_criteria_data[crit_id]["name"]
                     score = area_results[crit_id].get("score", 0)
                     
-                    # Shorten long names
-                    if len(criterion_name) > 40:
-                        criterion_name = criterion_name[:37] + "..."
-                    
-                    # Draw criterion name
+                    # Draw criterion name - aligned to the right of the chart
                     bar_y = pdf.get_y()
+                    
+                    # Draw a text to the left of the bars
                     pdf.set_font('Arial', '', 9)
-                    pdf.set_x(chart_x)
-                    pdf.cell(0, bar_height, criterion_name, 0, 1)
+                    # Shorten long names and ensure they fit
+                    name_width = 35  # Maximum width for names in characters
+                    if len(criterion_name) > name_width:
+                        criterion_name = criterion_name[:name_width-3] + "..."
+                    
+                    # Position the text before the chart
+                    name_x = chart_x - 5
+                    pdf.set_xy(name_x - 30, bar_y)  # Position 30 units to the left of chart start
+                    pdf.cell(30, bar_height, criterion_name, 0, 0, 'R')  # Right-aligned
+                    
+                    # Draw bar background (gray)
+                    pdf.set_fill_color(240, 240, 240)  # Light gray
+                    pdf.rect(chart_x, bar_y, max_bar_width, bar_height, 'F')
                     
                     # Choose bar color based on score
                     if score >= 4:
@@ -429,13 +469,18 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     else:
                         pdf.set_fill_color(255, 204, 203)  # Light red
                     
-                    # Draw the bar
+                    # Draw the score bar
                     bar_width = (score / 5) * max_bar_width
-                    pdf.rect(chart_x, bar_y, bar_width, bar_height, 'F')
+                    if bar_width > 0:  # Only draw if score is greater than 0
+                        pdf.rect(chart_x, bar_y, bar_width, bar_height, 'F')
+                    
+                    # Add a black border around the bar
+                    pdf.set_draw_color(0, 0, 0)  # Black outline
+                    pdf.rect(chart_x, bar_y, max_bar_width, bar_height, 'D')  # Draw outline
                     
                     # Add score text
                     pdf.set_font('Arial', 'B', 8)
-                    pdf.text(chart_x + bar_width + 5, bar_y + (bar_height/2), f"{score}/5")
+                    pdf.text(chart_x + max_bar_width + 5, bar_y + (bar_height/2), f"{score}/5")
                     
                     # Space for next bar
                     pdf.ln(space_between)
