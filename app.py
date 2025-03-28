@@ -254,31 +254,18 @@ else:
         """)
     
     with col2:
-        # User profile
+        # User profile with logout button
         st.markdown(f"""
         <div class="user-profile">
             <div class="avatar">{st.session_state.username[0].upper()}</div>
             <div class="info">
                 <p><strong>{st.session_state.username}</strong></p>
             </div>
-            <div class="actions">
-                {'<a href="#" id="logout">Logout</a>' if st.session_state.logged_in else ''}
-            </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Handle logout with JavaScript
-        st.markdown("""
-        <script>
-            document.querySelector('#logout').addEventListener('click', function() {
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'logout'}, '*');
-            });
-        </script>
-        """, unsafe_allow_html=True)
-        
-        # Check for logout action
-        logout_action = st.text_input("", key="logout_action", label_visibility="collapsed")
-        if logout_action == "logout":
+        # Simple logout button instead of JavaScript approach
+        if st.button("Logout", key="logout_button"):
             logout_user()
             st.rerun()
 
@@ -294,14 +281,30 @@ if 'assessment_results' not in st.session_state:
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
 
-# Sidebar with tabs for navigation (only for logged-in users)
+# Sidebar with better navigation (only for logged-in users)
 with st.sidebar:
     if st.session_state.logged_in:
-        # Add sidebar tabs for navigation
-        tab_titles = ["New Assessment", "History"]
-        sidebar_tabs = st.radio("Navigation", tab_titles)
+        # Add sidebar navigation with better styling
+        st.markdown("### Navigation")
+        # Create navigation as buttons rather than radio buttons
+        if 'sidebar_tab' not in st.session_state:
+            st.session_state.sidebar_tab = "New Assessment"
+            
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📄 New Assessment", use_container_width=True, 
+                        type="primary" if st.session_state.sidebar_tab == "New Assessment" else "secondary"):
+                st.session_state.sidebar_tab = "New Assessment"
+                st.rerun()
+        with col2:
+            if st.button("📋 History", use_container_width=True,
+                        type="primary" if st.session_state.sidebar_tab == "History" else "secondary"):
+                st.session_state.sidebar_tab = "History"
+                st.rerun()
+                
+        st.markdown("---")
         
-        if sidebar_tabs == "New Assessment":
+        if st.session_state.sidebar_tab == "New Assessment":
             st.header("Upload Policy Document")
             uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
             
@@ -401,7 +404,7 @@ with st.sidebar:
             else:
                 st.info("Please upload a document first")
                 
-        elif sidebar_tabs == "History":
+        elif st.session_state.sidebar_tab == "History":
             st.header("Assessment History")
             
             if st.session_state.user_id:
@@ -411,28 +414,30 @@ with st.sidebar:
                 if assessments:
                     for assessment in assessments:
                         with st.container():
+                            # Create a card with better styling for each assessment
                             st.markdown(f"""
-                            <div class="history-card">
-                                <h4>{assessment.document_name}</h4>
-                                <p class="date">Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}</p>
+                            <div style="padding: 10px; border-radius: 5px; background-color: #262730; margin-bottom: 10px;">
+                                <h4 style="margin-top: 0; margin-bottom: 5px;">{assessment.document_name}</h4>
+                                <p style="color: #9e9e9e; font-size: 0.8em; margin-bottom: 10px;">Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}</p>
                             </div>
                             """, unsafe_allow_html=True)
                             
-                            col1, col2 = st.columns([4, 1])
-                            with col2:
-                                if st.button("Load", key=f"load_{assessment.id}"):
-                                    # Load assessment data into session state
-                                    st.session_state.document_name = assessment.document_name
-                                    st.session_state.policy_summary = assessment.policy_summary
-                                    st.session_state.assessment_results = assessment.get_results_dict()
-                                    st.session_state.recommendations = assessment.recommendations
-                                    st.session_state.policy_text = "Loaded from history"  # Placeholder for text
-                                    
-                                    # Switch to New Assessment tab
-                                    st.session_state.sidebar_tab = "New Assessment"
-                                    st.rerun()
+                            # Add Load button in the middle
+                            if st.button("📂 Load Assessment", key=f"load_{assessment.id}", use_container_width=True):
+                                # Load assessment data into session state
+                                st.session_state.document_name = assessment.document_name
+                                st.session_state.policy_summary = assessment.policy_summary
+                                st.session_state.assessment_results = assessment.get_results_dict()
+                                st.session_state.recommendations = assessment.recommendations
+                                st.session_state.policy_text = "Loaded from history"  # Placeholder for text
+                                
+                                # Switch to New Assessment tab
+                                st.session_state.sidebar_tab = "New Assessment"
+                                st.rerun()
+                            
+                            st.markdown("---")
                 else:
-                    st.info("No assessment history found. Complete an assessment to save it to your history.")
+                    st.info("No assessment history found. Complete an assessment and save it to see it here.")
     else:
         # For non-logged in users, show basic upload
         st.header("Upload Policy Document")
