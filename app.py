@@ -172,27 +172,29 @@ def show_login_page():
     st.markdown('<div class="auth-form">', unsafe_allow_html=True)
     st.subheader("Login to Your Account")
     
+    st.info("Please enter your credentials to access the Policy Analysis Tool")
+    
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Login"):
-            if username and password:
-                success, user = authenticate_user(username, password)
-                if success:
-                    login_user(user)
-                    st.success("Login successful!")
-                    st.rerun()
-                else:
-                    st.error(user)  # Error message
+    if st.button("Login", use_container_width=True):
+        if username and password:
+            success, user = authenticate_user(username, password)
+            if success:
+                login_user(user)
+                st.success("Login successful!")
+                st.rerun()
             else:
-                st.warning("Please enter both username and password")
+                st.error(user)  # Error message
+        else:
+            st.warning("Please enter both username and password")
     
-    with col2:
-        if st.button("Register"):
-            st.session_state.show_register = True
-            st.rerun()
+    # Add note for authorized users
+    st.markdown("""
+    <div style="margin-top: 20px; padding: 10px; border-radius: 5px; background-color: #f8f9fa; font-size: 0.9em; color: #6c757d;">
+    <strong>Note:</strong> This is a private application. Only authorized users can access this tool.
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -228,16 +230,13 @@ def show_register_page():
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Show appropriate authentication page or main app
+# Show login page or main app
 if not st.session_state.logged_in:
     # Application title
     st.title("Policy Insight Generator")
     
-    # Show register or login page
-    if st.session_state.get('show_register', False):
-        show_register_page()
-    else:
-        show_login_page()
+    # Show login page
+    show_login_page()
         
 else:
     # Application title and description for logged-in users

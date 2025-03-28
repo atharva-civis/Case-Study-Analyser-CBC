@@ -64,6 +64,40 @@ class AssessmentHistory(Base):
 # Create all tables in the database
 Base.metadata.create_all(bind=engine)
 
+# Add predefined users (will only add if they don't exist)
+def create_predefined_users():
+    db = SessionLocal()
+    
+    # Check if user1 exists
+    user1 = db.query(User).filter(User.username == "info@civis.vote").first()
+    if not user1:
+        # Create user1
+        user1 = User(
+            username="info@civis.vote",
+            email="info@civis.vote",
+            hashed_password=User.get_password_hash("policy123"),
+            is_active=True
+        )
+        db.add(user1)
+    
+    # Check if user2 exists
+    user2 = db.query(User).filter(User.username == "jpmteam@civis.vote").first()
+    if not user2:
+        # Create user2
+        user2 = User(
+            username="jpmteam@civis.vote",
+            email="jpmteam@civis.vote",
+            hashed_password=User.get_password_hash("jpm@123"),
+            is_active=True
+        )
+        db.add(user2)
+    
+    db.commit()
+    db.close()
+
+# Initialize predefined users
+create_predefined_users()
+
 # Database utility functions
 def get_db():
     """Get a database session"""
@@ -73,28 +107,10 @@ def get_db():
     finally:
         db.close()
 
+# We're not using this function anymore since registration is disabled
 def register_user(username, email, password):
     """Register a new user in the database"""
-    db = get_db()
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.username == username).first()
-    if existing_user:
-        db.close()
-        return False, "Username already exists"
-    
-    existing_email = db.query(User).filter(User.email == email).first()
-    if existing_email:
-        db.close()
-        return False, "Email already exists"
-    
-    # Create new user
-    hashed_password = User.get_password_hash(password)
-    user = User(username=username, email=email, hashed_password=hashed_password)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    db.close()
-    return True, "User registered successfully"
+    return False, "Registration is disabled"
 
 def authenticate_user(username, password):
     """Authenticate a user with username and password"""
