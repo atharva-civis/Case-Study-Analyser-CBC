@@ -10,8 +10,13 @@ import streamlit as st
 # Get database URL from environment
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Create engine and session
-engine = create_engine(DATABASE_URL)
+# Create engine and session with connection pool settings for better reliability
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,  # Test connections before using them
+    pool_recycle=3600,   # Recycle connections after 1 hour
+    connect_args={"connect_timeout": 15}  # 15 second connection timeout
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -100,12 +105,30 @@ create_predefined_users()
 
 # Database utility functions
 def get_db():
-    """Get a database session"""
-    db = SessionLocal()
-    try:
-        return db
-    finally:
-        db.close()
+    """Get a database session with better error handling"""
+    db = None
+    retry_attempts = 3
+    retry_delay = 0.5  # seconds
+    
+    for attempt in range(retry_attempts):
+        try:
+            db = SessionLocal()
+            # Test the connection with a simple query
+            db.execute("SELECT 1")
+            return db
+        except Exception as e:
+            if db:
+                db.close()
+            
+            if attempt < retry_attempts - 1:
+                # Log the error and retry
+                print(f"Database connection attempt {attempt+1} failed: {str(e)}")
+                import time
+                time.sleep(retry_delay)
+            else:
+                # Last attempt failed, raise the exception
+                print(f"All database connection attempts failed: {str(e)}")
+                raise
 
 # We're not using this function anymore since registration is disabled
 def register_user(username, email, password):

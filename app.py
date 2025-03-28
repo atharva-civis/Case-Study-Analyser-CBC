@@ -280,6 +280,8 @@ if 'assessment_results' not in st.session_state:
     st.session_state.assessment_results = {}
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
+if 'loaded_from_history' not in st.session_state:
+    st.session_state.loaded_from_history = False
 
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
@@ -300,13 +302,25 @@ with st.sidebar:
             
             # Clear main section content when switching tabs
             if sidebar_tab == "New Assessment":
-                # Reset assessment view data
-                if 'policy_analysis' in st.session_state:
-                    st.session_state.policy_analysis = None
-                if 'assessment_results' in st.session_state:
-                    st.session_state.assessment_results = {}
-                if 'recommendations' in st.session_state:
-                    st.session_state.recommendations = ""
+                # Check if we're already loading from history - don't clear if so
+                if not st.session_state.get('loaded_from_history', False):
+                    # Completely reset all assessment-related data
+                    if 'policy_text' in st.session_state:
+                        st.session_state.policy_text = ""
+                    if 'policy_analysis' in st.session_state:
+                        st.session_state.policy_analysis = None
+                    if 'policy_summary' in st.session_state:
+                        st.session_state.policy_summary = ""
+                    if 'assessment_results' in st.session_state:
+                        st.session_state.assessment_results = {}
+                    if 'recommendations' in st.session_state:
+                        st.session_state.recommendations = ""
+                    if 'document_name' in st.session_state:
+                        st.session_state.document_name = ""
+                else:
+                    # If switching back to New Assessment with loaded content,
+                    # just reset the flag for next time
+                    st.session_state.loaded_from_history = False
             elif sidebar_tab == "History":
                 # Reset history view data if needed
                 if 'selected_assessment' in st.session_state:
@@ -420,32 +434,53 @@ with st.sidebar:
             st.header("Assessment History")
             
             if st.session_state.user_id:
-                # Get user's assessment history
-                assessments = get_user_assessments(st.session_state.user_id)
-                
-                if assessments:
-                    for assessment in assessments:
-                        with st.container():
-                            # Simple list of assessments without custom CSS
-                            st.subheader(assessment.document_name)
-                            st.caption(f"Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}")
-                            
-                            # Simple load button
-                            if st.button("Load Assessment", key=f"load_{assessment.id}"):
-                                # Load assessment data into session state
-                                st.session_state.document_name = assessment.document_name
-                                st.session_state.policy_summary = assessment.policy_summary
-                                st.session_state.assessment_results = assessment.get_results_dict()
-                                st.session_state.recommendations = assessment.recommendations
-                                st.session_state.policy_text = "Loaded from history"  # Placeholder for text
+                try:
+                    # Get user's assessment history with error handling
+                    with st.spinner("Loading assessment history..."):
+                        assessments = get_user_assessments(st.session_state.user_id)
+                    
+                    # Refresh button for history
+                    if st.button("🔄 Refresh History"):
+                        st.rerun()
+                    
+                    if assessments and len(assessments) > 0:
+                        st.success(f"Found {len(assessments)} saved assessments.")
+                        
+                        for assessment in assessments:
+                            with st.container():
+                                # Simple list of assessments without custom CSS
+                                st.subheader(assessment.document_name)
+                                st.caption(f"Date: {assessment.created_at.strftime('%Y-%m-%d %H:%M')}")
                                 
-                                # Switch to New Assessment tab
-                                st.session_state.sidebar_tab = "New Assessment"
-                                st.rerun()
-                            
-                            st.markdown("---")
-                else:
-                    st.info("No assessment history found. Complete an assessment and save it to see it here.")
+                                # Simple load button
+                                if st.button("Load Assessment", key=f"load_{assessment.id}"):
+                                    try:
+                                        # Load assessment data into session state with history flag
+                                        st.session_state.document_name = assessment.document_name
+                                        st.session_state.policy_summary = assessment.policy_summary
+                                        st.session_state.assessment_results = assessment.get_results_dict()
+                                        st.session_state.recommendations = assessment.recommendations
+                                        st.session_state.policy_text = "Loaded from history"  # Placeholder for text
+                                        
+                                        # Set a special flag to indicate this is from history
+                                        st.session_state.loaded_from_history = True
+                                        
+                                        # Switch to New Assessment tab
+                                        st.session_state.sidebar_tab = "New Assessment"
+                                        
+                                        # Show a success message
+                                        st.success(f"Successfully loaded assessment: {assessment.document_name}")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error loading assessment: {str(e)}")
+                                
+                                st.markdown("---")
+                    else:
+                        st.info("No assessment history found. Complete an assessment and save it to see it here.")
+                        st.write("After saving an assessment, click the 'Refresh History' button to see it listed here.")
+                except Exception as e:
+                    st.error(f"Error retrieving assessment history: {str(e)}")
+                    st.info("Please try refreshing or check database connection.")
     else:
         # For non-logged in users, show basic upload
         st.header("Upload Policy Document")
@@ -523,14 +558,24 @@ if st.session_state.policy_text:
                 if st.button("Save to History"):
                     if st.session_state.user_id:
                         # Save assessment to database
-                        assessment_id = save_assessment(
-                            user_id=st.session_state.user_id,
-                            document_name=st.session_state.document_name,
-                            policy_summary=st.session_state.policy_summary,
-                            assessment_results=st.session_state.assessment_results,
-                            recommendations=st.session_state.get('recommendations', "No recommendations available.")
-                        )
-                        st.success(f"Assessment saved to your history!")
+                        try:
+                            assessment_id = save_assessment(
+                                user_id=st.session_state.user_id,
+                                document_name=st.session_state.document_name,
+                                policy_summary=st.session_state.policy_summary,
+                                assessment_results=st.session_state.assessment_results,
+                                recommendations=st.session_state.get('recommendations', "No recommendations available.")
+                            )
+                            
+                            if assessment_id:
+                                # Make success message more prominent
+                                st.success(f"Assessment successfully saved to your history!")
+                                st.info("You can view it in the History tab.")
+                            else:
+                                st.error("Failed to save assessment. Database error occurred.")
+                        except Exception as e:
+                            st.error(f"Error saving assessment: {str(e)}")
+                            st.info("Please try again or check database connection.")
                     else:
                         st.error("Error saving assessment. Please try again.")
             
