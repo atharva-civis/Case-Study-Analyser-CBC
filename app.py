@@ -1,10 +1,13 @@
 import streamlit as st
 import os
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import base64
 from io import BytesIO
 import PyPDF2
 import docx
-from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api
+from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA
 
 # Set page configuration
@@ -13,6 +16,62 @@ st.set_page_config(
     page_icon="📑",
     layout="wide"
 )
+
+# Custom CSS to improve the appearance
+st.markdown("""
+<style>
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    h1, h2, h3 {
+        color: #1E3A8A;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #F3F4F6;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #DBEAFE;
+        color: #1E40AF;
+    }
+    .card {
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        background-color: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+    .metrics-container {
+        display: flex;
+        justify-content: space-around;
+        margin: 20px 0;
+    }
+    .metric-card {
+        text-align: center;
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #F9FAFB;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .criteria-heading {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #1E3A8A;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #E5E7EB;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Application title and description
 st.title("Policy Insight Generator")
@@ -154,6 +213,25 @@ if st.session_state.policy_text:
     if st.session_state.assessment_results:
         st.header("Assessment Results")
         
+        # Add export report button
+        col1, col2 = st.columns([4, 1])
+        with col2:
+            if st.button("Export Report as PDF"):
+                # Generate PDF report
+                pdf_file = generate_report_pdf(
+                    "policy_assessment.pdf",
+                    st.session_state.document_name,
+                    st.session_state.policy_summary,
+                    st.session_state.assessment_results,
+                    ASSESSMENT_AREAS,
+                    ASSESSMENT_CRITERIA
+                )
+                # Create download link
+                st.markdown(
+                    get_download_link(pdf_file, "policy_assessment.pdf", "📥 Download PDF Report"),
+                    unsafe_allow_html=True
+                )
+        
         # Create tabs for each assessment area
         tabs = st.tabs([ASSESSMENT_AREAS[area_id]["name"] for area_id in ASSESSMENT_AREAS])
         
@@ -163,27 +241,61 @@ if st.session_state.policy_text:
                 st.write(area_info["description"])
                 
                 if area_id in st.session_state.assessment_results:
-                    # Prepare data for table
-                    table_data = []
                     area_criteria = ASSESSMENT_CRITERIA[area_id]
                     area_results = st.session_state.assessment_results[area_id]
                     
+                    # Calculate scores
+                    total_score = sum(result.get("score", 0) for result in area_results.values())
+                    avg_score = total_score / len(area_results) if area_results else 0
+                    
+                    # Display scores in a metrics row
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Score", f"{total_score:.1f}")
+                    with col2:
+                        st.metric("Average Score", f"{avg_score:.2f}/5")
+                    
+                    # Create visualizations for scores
+                    st.subheader("Score Visualization")
+                    
+                    # Create gauge chart for average score
+                    gauge_fig = create_gauge_chart(avg_score, f"Average Score for {area_info['name']}")
+                    st.plotly_chart(gauge_fig)
+                    
+                    # Create a bar chart for all criteria scores
+                    score_data = {area_criteria[crit_id]["name"]: result.get("score", 0) 
+                                  for crit_id, result in area_results.items()}
+                    
+                    fig = px.bar(
+                        x=list(score_data.keys()),
+                        y=list(score_data.values()),
+                        labels={"x": "Criteria", "y": "Score"},
+                        title=f"Scores by Criteria for {area_info['name']}",
+                        color=list(score_data.values()),
+                        color_continuous_scale=["red", "yellow", "green"],
+                        range_color=[1, 5]
+                    )
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig)
+                    
+                    # Detailed criteria analysis
+                    st.subheader("Detailed Assessment")
+                    
+                    # Display each criterion in a card-like format
                     for criterion_id, result in area_results.items():
                         criterion_name = area_criteria[criterion_id]["name"]
-                        table_data.append({
-                            "Criteria": criterion_name,
-                            "Score": result.get("score", "N/A"),
-                            "Reasoning & Evidence": result.get("reasoning", "N/A"),
-                            "Document Reference": result.get("document_reference", "N/A")
-                        })
-                    
-                    # Display as a DataFrame
-                    df = pd.DataFrame(table_data)
-                    st.table(df)
-                    
-                    # Calculate and display average score for this area
-                    avg_score = sum(result.get("score", 0) for result in area_results.values()) / len(area_results)
-                    st.metric(f"Average Score for {area_info['name']}", f"{avg_score:.2f}/5")
+                        score = result.get("score", "N/A")
+                        reasoning = result.get("reasoning", "N/A")
+                        doc_ref = result.get("document_reference", "N/A")
+                        
+                        with st.container():
+                            st.markdown(f"""
+                            <div class="card">
+                                <div class="criteria-heading">{criterion_name} - Score: {score}/5</div>
+                                <p><strong>Reasoning & Evidence:</strong> {reasoning}</p>
+                                <p><strong>Document Reference:</strong> {doc_ref}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                 else:
                     st.info("No assessment data available for this area")
     

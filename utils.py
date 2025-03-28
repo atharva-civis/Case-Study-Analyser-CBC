@@ -3,8 +3,12 @@ import json
 import PyPDF2
 import docx
 import requests
+import base64
+import datetime
 from io import BytesIO
 from openai import OpenAI
+from fpdf import FPDF
+import plotly.graph_objects as go
 
 # Initialize OpenAI client
 # The newest OpenAI model is "gpt-4o" which was released May 13, 2024.
@@ -139,3 +143,174 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
     
     except Exception as e:
         return f"Error calling OpenAI API: {str(e)}"
+        
+def create_gauge_chart(score, title):
+    """
+    Creates a gauge chart for a score from 1-5
+    
+    Args:
+        score (float): Score value between 1 and 5
+        title (str): Title for the gauge
+        
+    Returns:
+        str: Base64 encoded image of the gauge chart
+    """
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        title={'text': title},
+        domain={'x': [0, 1], 'y': [0, 1]},
+        gauge={
+            'axis': {'range': [0, 5], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'bar': {'color': "royalblue"},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "gray",
+            'steps': [
+                {'range': [0, 2], 'color': 'lightcoral'},
+                {'range': [2, 3.5], 'color': 'lightyellow'},
+                {'range': [3.5, 5], 'color': 'lightgreen'}
+            ]
+        }
+    ))
+    
+    fig.update_layout(
+        height=300,
+        width=400,
+        margin=dict(l=30, r=30, b=20, t=40),
+        paper_bgcolor="white",
+        font={'color': "darkblue", 'family': "Arial"}
+    )
+    
+    return fig
+    
+def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria):
+    """
+    Generate a PDF report of the policy assessment
+    
+    Args:
+        filename (str): Name to save the PDF as
+        policy_name (str): Name of the policy document
+        policy_summary (str): Summary of the policy
+        assessment_results (dict): Results of the assessment
+        assessment_areas (dict): Assessment areas information
+        assessment_criteria (dict): Assessment criteria information
+        
+    Returns:
+        BytesIO: PDF file as BytesIO object
+    """
+    class PDF(FPDF):
+        def header(self):
+            # Set up the header
+            self.set_font('Arial', 'B', 15)
+            self.cell(0, 10, 'Policy Assessment Report', 0, 1, 'C')
+            self.ln(5)
+        
+        def footer(self):
+            # Set up the footer
+            self.set_y(-15)
+            self.set_font('Arial', 'I', 8)
+            date = datetime.datetime.now().strftime("%Y-%m-%d")
+            self.cell(0, 10, f'Generated on {date} - Page {self.page_no()}', 0, 0, 'C')
+    
+    # Create PDF object
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    
+    # Document information
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, f"Document: {policy_name}", 0, 1)
+    pdf.ln(2)
+    
+    # Summary section
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, "Policy Summary", 0, 1)
+    pdf.set_font('Arial', '', 10)
+    
+    # Add summary text with word wrapping
+    pdf.multi_cell(0, 6, policy_summary)
+    pdf.ln(5)
+    
+    # Assessment Results
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, "Assessment Results", 0, 1)
+    
+    # Process each assessment area
+    for area_id, area_info in assessment_areas.items():
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, area_info["name"], 0, 1)
+        pdf.set_font('Arial', 'I', 10)
+        pdf.multi_cell(0, 5, area_info["description"])
+        pdf.ln(2)
+        
+        if area_id in assessment_results:
+            # Calculate total and average scores
+            area_results = assessment_results[area_id]
+            total_score = sum(result.get("score", 0) for result in area_results.values())
+            avg_score = total_score / len(area_results) if area_results else 0
+            
+            pdf.set_font('Arial', 'B', 10)
+            pdf.cell(0, 8, f"Total Score: {total_score:.1f} | Average Score: {avg_score:.2f}/5", 0, 1)
+            pdf.ln(2)
+            
+            # Process each criterion
+            area_criteria = assessment_criteria[area_id]
+            
+            # Table header
+            pdf.set_fill_color(240, 240, 240)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.cell(50, 8, "Criteria", 1, 0, 'L', True)
+            pdf.cell(20, 8, "Score", 1, 0, 'C', True)
+            pdf.cell(120, 8, "Reasoning", 1, 1, 'L', True)
+            
+            # Table content
+            pdf.set_font('Arial', '', 9)
+            for criterion_id, result in area_results.items():
+                criterion_name = area_criteria[criterion_id]["name"]
+                score = result.get("score", "N/A")
+                reasoning = result.get("reasoning", "N/A")
+                
+                # Criteria name
+                pdf.cell(50, 10, criterion_name, 1, 0)
+                # Score
+                pdf.cell(20, 10, f"{score}", 1, 0, 'C')
+                
+                # Calculate remaining height needed for reasoning
+                current_y = pdf.get_y()
+                pdf.multi_cell(120, 10, reasoning, 1, 'L')
+                pdf.set_y(pdf.get_y())
+                
+            pdf.ln(5)
+        else:
+            pdf.set_font('Arial', 'I', 10)
+            pdf.cell(0, 10, "No assessment data available for this area", 0, 1)
+        
+        # Add page break between areas
+        pdf.add_page()
+    
+    # Save to BytesIO
+    pdf_bytes = pdf.output(dest='S')
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode('latin-1')
+    
+    pdf_output = BytesIO(pdf_bytes)
+    pdf_output.seek(0)
+    
+    return pdf_output
+
+def get_download_link(pdf_bytes, filename, text):
+    """
+    Generate a download link for a PDF file
+    
+    Args:
+        pdf_bytes (BytesIO): PDF file as BytesIO object
+        filename (str): Filename for download
+        text (str): Link text
+        
+    Returns:
+        str: HTML for download link
+    """
+    b64 = base64.b64encode(pdf_bytes.read()).decode()
+    href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">{text}</a>'
+    return href
