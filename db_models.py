@@ -11,12 +11,22 @@ import streamlit as st
 # Get database URL from environment
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Check if DATABASE_URL is available
+if not DATABASE_URL:
+    print("WARNING: DATABASE_URL environment variable not found!")
+    print("Using SQLite database for testing purposes")
+    DATABASE_URL = "sqlite:///./test.db"
+
+# Only print the first part of the URL (before password info if present)
+if '@' in DATABASE_URL:
+    print(f"Using database connection: {DATABASE_URL.split('@')[0].split(':')[0]}...")
+
 # Create engine and session with connection pool settings for better reliability
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Test connections before using them
     pool_recycle=3600,   # Recycle connections after 1 hour
-    connect_args={"connect_timeout": 15}  # 15 second connection timeout
+    connect_args={"connect_timeout": 15} if "postgresql" in DATABASE_URL else {}  # Connection timeout only for PostgreSQL
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
