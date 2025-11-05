@@ -447,10 +447,18 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 # Set up the chart dimensions
                 chart_x = 40  # Starting X position
                 chart_width = 160  # Width of chart area
-                bar_height = 8  # Height of each bar
+                
+                # Adjust bar height and spacing for areas with many criteria
+                # Area 2 (Impact) has 9 criteria, so we make it more compact
+                if area_id == "area2":
+                    bar_height = 6  # Smaller height for compact display
+                    space_between = 10  # Less space between bars
+                else:
+                    bar_height = 8  # Standard height for areas with fewer criteria
+                    space_between = 14  # Standard spacing
+                
                 max_bar_width = 100  # Maximum width of bars at score 5
                 header_height = 20  # Height for headers
-                space_between = 14  # Space between bars
                 
                 # Calculate total chart height
                 chart_height = header_height + (len(criteria_list) * (bar_height + space_between))
