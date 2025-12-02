@@ -1,0 +1,60 @@
+🧭 Case Study Analyser Framework
+(Adapted from CBC–India AGK Case Study Review Rubric)
+Assessment Area	Purpose	Sub-Criteria (Parameters)	Agent Prompt (Feed for Evaluation)	Score Range & Logic	Suggested Weight
+Assessment Area 1 – Structure, Chronology & Logical Flow
+
+Purpose: To evaluate whether the case study is well-organised, follows a logical sequence, and maintains reader engagement.
+
+Criterion	Agent Prompt (for each criterion)	Score Range & Logic
+1. Key Theme Clarity	“Identify if the central problem or theme is clearly stated and consistently reinforced throughout the case. Summarise the main theme in ≤ 40 words.”	0–3 (3 = clear & consistent; 2 = implied; 1 = vague; 0 = missing)
+2. Chronological Flow	“Check whether events follow a logical, time-ordered sequence aiding reader comprehension.”	0–2 (2 = coherent timeline; 1 = partially ordered; 0 = confusing)
+3. Logical Coherence	“Examine if arguments/events build naturally on one another.”	0–2 (2 = strong causal flow; 1 = some gaps; 0 = disjointed)
+4. Sectional Connectivity	“Evaluate whether each section connects smoothly with the previous one, forming a unified narrative.”	0–2 (2 = connected; 1 = partially; 0 = fragmented)
+5. Template Adherence	“Verify that all AGK template headings are present and complete.”	0–2 (2 = complete; 1 = partial; 0 = missing)
+6. Captivating Hook	“Assess whether the introduction captures attention and sets the case context effectively.”	0–1 (1 = engaging; 0 = flat)
+
+→ Total Points Possible: 12  → Weight: 25 %
+
+Assessment Area 2 – Language, Citations & Factual Accuracy
+
+Purpose: To ensure the case study is readable, accurate, and meets editorial and academic standards.
+
+Criterion	Agent Prompt	Score Range & Logic
+1. Language Quality	“Evaluate if the text uses clear, simple, British English; avoids passive voice and jargon.”	0–3 (3 = clear & active; 2 = minor issues; 1 = wordy/passive; 0 = poor)
+2. Factual Correctness	“Verify whether facts/data/events are accurate and supported by citations or references.”	0–3 (3 = verified; 2 = minor gaps; 1 = questionable; 0 = unverified)
+3. Citation Quality	“Check if citations are valid, functional, and properly formatted.”	0–2 (2 = all verified; 1 = partially; 0 = broken/missing)
+4. Additional Readings	“Look for the presence of recommended supplementary materials or related cases.”	0–1 (1 = present; 0 = absent)
+
+→ Total Points Possible: 9  → Weight: 20 %
+
+Assessment Area 3 – Alignment with Teaching Note, Sector & Competencies
+
+Purpose: To check whether the case and its teaching note complement each other and align with sectoral or competency goals.
+
+Criterion	Agent Prompt	Score Range & Logic
+1. Learning Objectives Alignment	“Cross-check if the case content supports the teaching note’s stated learning objectives.”	0–3 (3 = fully aligned; 2 = partial; 1 = weak; 0 = not aligned)
+2. Theories & Frameworks	“Identify whether the TN includes relevant theoretical or analytical frameworks linked to the case.”	0–2 (2 = present & used; 1 = named but unused; 0 = missing)
+3. Competency Alignment	“Evaluate mapping of Karmayogi competencies—are they appropriate and evident in the narrative?”	0–2 (2 = strong; 1 = weak; 0 = absent)
+4. Sector / Theme Classification (SDG Linkage)	“Confirm that the case is tagged to the correct sector or SDG theme.”	0–1 (1 = correct; 0 = misclassified)
+
+→ Total Points Possible: 8  → Weight: 25 %
+
+Assessment Area 4 – Overall Effectiveness & Impact
+
+Purpose: To measure how well the case study achieves its intended educational and practical outcomes.
+
+Criterion	Agent Prompt	Score Range & Logic
+1. Delivery & Implementation Clarity	“Assess if problems and solutions are clearly articulated, and whether implementation is described logically.”	0–3 (3 = clear; 2 = partial; 1 = ambiguous; 0 = missing)
+2. Best Practices & Lessons	“Detect explicit best practices, lessons learned, or innovative methods emerging from the narrative.”	0–2 (2 = evident; 1 = weak; 0 = missing)
+3. Impact Visibility	“Check if the results, transformations, or measurable outcomes are described and substantiated.”	0–3 (3 = visible & supported; 2 = partial; 1 = minimal; 0 = absent)
+
+→ Total Points Possible: 8  → Weight: 30 %
+
+⚖️ Overall Scoring Summary
+Assessment Area	Total Points	Weight (%)	Weighted Contribution
+1 – Structure & Flow	12	25 %	0.25 × (score / 12)
+2 – Language & Accuracy	9	20 %	0.20 × (score / 9)
+3 – Alignment & Competency	8	25 %	0.25 × (score / 8)
+4 – Effectiveness & Impact	8	30 %	0.30 × (score / 8)
+
+Final Composite Score = Σ (weighted area scores) × 100 (%)
