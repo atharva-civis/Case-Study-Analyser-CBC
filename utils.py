@@ -13,8 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Initialize OpenAI client
-# The newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-# Do not change this unless explicitly requested by the user
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -113,13 +111,13 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
                 
                 # Ensure all expected fields exist and have the correct types
                 if "score" not in result:
-                    result["score"] = 3  # Default middle score
+                    result["score"] = 0  # Default to 0 for case study scoring
                 elif not isinstance(result["score"], (int, float)):
                     # Convert to number if possible, otherwise use default
                     try:
                         result["score"] = float(result["score"])
                     except ValueError:
-                        result["score"] = 3
+                        result["score"] = 0
                 
                 # Ensure reasoning is a string
                 if "reasoning" not in result:
@@ -146,32 +144,38 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
     except Exception as e:
         return f"Error calling OpenAI API: {str(e)}"
         
-def create_gauge_chart(score, title):
+def create_gauge_chart(score, title, max_value=100):
     """
-    Creates a gauge chart for a score from 1-5
+    Creates a gauge chart for a score
     
     Args:
-        score (float): Score value between 1 and 5
+        score (float): Score value
         title (str): Title for the gauge
+        max_value (float): Maximum value for the gauge (default 100 for percentage)
         
     Returns:
-        str: Base64 encoded image of the gauge chart
+        plotly figure object
     """
+    # Define color thresholds based on percentage
+    threshold_low = max_value * 0.4
+    threshold_mid = max_value * 0.7
+    
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
         title={'text': title},
         domain={'x': [0, 1], 'y': [0, 1]},
+        number={'suffix': '%' if max_value == 100 else ''},
         gauge={
-            'axis': {'range': [0, 5], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'axis': {'range': [0, max_value], 'tickwidth': 1, 'tickcolor': "darkblue"},
             'bar': {'color': "royalblue"},
             'bgcolor': "white",
             'borderwidth': 2,
             'bordercolor': "gray",
             'steps': [
-                {'range': [0, 2], 'color': 'lightcoral'},
-                {'range': [2, 3.5], 'color': 'lightyellow'},
-                {'range': [3.5, 5], 'color': 'lightgreen'}
+                {'range': [0, threshold_low], 'color': 'lightcoral'},
+                {'range': [threshold_low, threshold_mid], 'color': 'lightyellow'},
+                {'range': [threshold_mid, max_value], 'color': 'lightgreen'}
             ]
         }
     ))
@@ -253,32 +257,34 @@ def sanitize_text_for_pdf(text):
     
     return text
 
-def generate_report_pdf(filename, policy_name, policy_summary, assessment_results, assessment_areas, assessment_criteria, recommendations=""):
+def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None):
     """
-    Generate a PDF report of the policy assessment
+    Generate a PDF report of the case study assessment
     
     Args:
         filename (str): Name to save the PDF as
-        policy_name (str): Name of the policy document
-        policy_summary (str): Summary of the policy
+        document_name (str): Name of the document
+        document_summary (str): Summary of the document
         assessment_results (dict): Results of the assessment
         assessment_areas (dict): Assessment areas information
         assessment_criteria (dict): Assessment criteria information
-        recommendations (str, optional): Recommendations for policy improvement
+        recommendations (str, optional): Recommendations for improvement
+        weighted_scores (dict, optional): Weighted score calculations
         
     Returns:
         BytesIO: PDF file as BytesIO object
     """
     # Sanitize all text inputs for PDF compatibility
-    policy_name = sanitize_text_for_pdf(policy_name)
-    policy_summary = sanitize_text_for_pdf(policy_summary)
+    document_name = sanitize_text_for_pdf(document_name)
+    document_summary = sanitize_text_for_pdf(document_summary)
     if recommendations:
         recommendations = sanitize_text_for_pdf(recommendations)
+    
     class PDF(FPDF):
         def header(self):
             # Set up the header
             self.set_font('Arial', 'B', 15)
-            self.cell(0, 10, 'Policy Assessment Report', 0, 1, 'C')
+            self.cell(0, 10, 'Case Study Assessment Report', 0, 1, 'C')
             self.ln(5)
         
         def footer(self):
@@ -301,21 +307,22 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             self.cell(0, 10, title, 0, 1, 'L')
             self.ln(2)
         
-        def add_score_box(self, label, score, max_score=5):
+        def add_score_box(self, label, score, max_score=3):
             # Create a visual score box
             self.set_fill_color(240, 240, 240)
             self.set_font('Arial', 'B', 10)
             self.cell(40, 10, label, 1, 0, 'L')
             
-            # Choose color based on score
-            if score >= 4:
+            # Choose color based on score percentage
+            score_pct = score / max_score if max_score > 0 else 0
+            if score_pct >= 0.75:
                 self.set_fill_color(144, 238, 144)  # Light green
-            elif score >= 3:
+            elif score_pct >= 0.5:
                 self.set_fill_color(255, 255, 153)  # Light yellow
             else:
                 self.set_fill_color(255, 204, 203)  # Light red
                 
-            self.cell(20, 10, f"{score:.1f}/{max_score}", 1, 1, 'C', True)
+            self.cell(20, 10, f"{score}/{max_score}", 1, 1, 'C', True)
             self.ln(1)
     
     # Create PDF object
@@ -325,112 +332,145 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
     
     # Cover page with title and document info
     pdf.set_font('Arial', 'B', 20)
-    pdf.cell(0, 20, 'Policy Assessment Report', 0, 1, 'C')
+    pdf.cell(0, 20, 'Case Study Assessment Report', 0, 1, 'C')
     pdf.ln(10)
     
     pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, f"Document: {policy_name}", 0, 1, 'C')
+    pdf.cell(0, 10, f"Document: {document_name}", 0, 1, 'C')
     pdf.ln(10)
     
     pdf.set_font('Arial', '', 10)
     pdf.cell(0, 10, f"Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, 'C')
     
+    # Add Final Composite Score prominently if available
+    if weighted_scores:
+        pdf.ln(15)
+        final_score = weighted_scores.get("final_composite_score", 0)
+        
+        # Determine grade label
+        if final_score >= 85:
+            grade_label = "Excellent"
+            grade_color = (40, 167, 69)  # Green
+        elif final_score >= 70:
+            grade_label = "Good"
+            grade_color = (59, 130, 246)  # Blue
+        elif final_score >= 55:
+            grade_label = "Satisfactory"
+            grade_color = (255, 193, 7)  # Yellow
+        elif final_score >= 40:
+            grade_label = "Needs Improvement"
+            grade_color = (253, 126, 20)  # Orange
+        else:
+            grade_label = "Poor"
+            grade_color = (220, 53, 69)  # Red
+        
+        pdf.set_fill_color(*grade_color)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font('Arial', 'B', 18)
+        pdf.cell(0, 15, f"Final Composite Score: {final_score:.1f}% - {grade_label}", 0, 1, 'C', True)
+        pdf.set_text_color(0, 0, 0)  # Reset to black
+    
     # Executive summary page
     pdf.add_page()
     pdf.section_title("Executive Summary")
     pdf.set_font('Arial', '', 11)
-    pdf.multi_cell(0, 6, policy_summary)
+    pdf.multi_cell(0, 6, document_summary)
     pdf.ln(5)
     
-    # Calculate overall scores
-    overall_scores = {}
-    total_overall_score = 0
-    total_criteria_count = 0
-    
-    for area_id, area_results in assessment_results.items():
-        if area_results:
-            area_total = sum(result.get("score", 0) for result in area_results.values())
-            area_avg = area_total / len(area_results)
-            overall_scores[area_id] = {
-                "total": area_total,
-                "average": area_avg,
-                "count": len(area_results)
-            }
-            total_overall_score += area_total
-            total_criteria_count += len(area_results)
-    
-    # Add overall score summary
-    if total_criteria_count > 0:
-        pdf.section_title("Assessment Summary")
+    # Weighted scoring summary
+    if weighted_scores:
+        pdf.section_title("Weighted Scoring Summary")
         
-        # Overall scores - both total and average
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(100, 10, f"Overall Total Score: {total_overall_score:.1f}", 0, 0)
-        pdf.cell(0, 10, f"Overall Average Score: {total_overall_score / total_criteria_count:.2f}/5", 0, 1)
-        pdf.ln(5)
-        
-        # Area scores table header
-        pdf.set_font('Arial', 'B', 11)
-        pdf.cell(0, 10, "Area Scores:", 0, 1)
-        
-        # Create a table for area scores
+        # Create a table for weighted scores
         pdf.set_fill_color(240, 240, 240)
         pdf.set_font('Arial', 'B', 10)
-        pdf.cell(100, 8, "Assessment Area", 1, 0, 'L', True)
-        pdf.cell(30, 8, "Total", 1, 0, 'C', True)
-        pdf.cell(30, 8, "Average", 1, 1, 'C', True)
+        pdf.cell(70, 8, "Assessment Area", 1, 0, 'L', True)
+        pdf.cell(25, 8, "Score", 1, 0, 'C', True)
+        pdf.cell(25, 8, "Max", 1, 0, 'C', True)
+        pdf.cell(25, 8, "%", 1, 0, 'C', True)
+        pdf.cell(25, 8, "Weight", 1, 0, 'C', True)
+        pdf.cell(25, 8, "Contrib.", 1, 1, 'C', True)
         
-        # Table rows
         pdf.set_font('Arial', '', 10)
-        for area_id, scores in overall_scores.items():
-            area_name = assessment_areas[area_id]["name"]
-            total = scores["total"]
-            avg = scores["average"]
+        for area_id, area_info in assessment_areas.items():
+            area_score_data = weighted_scores["area_scores"].get(area_id, {})
+            weighted_data = weighted_scores["weighted_scores"].get(area_id, {})
             
-            # Choose color based on average score
-            if avg >= 4:
-                pdf.set_fill_color(220, 255, 220)  # Very light green
-            elif avg >= 3:
-                pdf.set_fill_color(255, 255, 220)  # Very light yellow
+            score = area_score_data.get("score", 0)
+            max_score = area_score_data.get("max_score", 1)
+            percentage = area_score_data.get("percentage", 0)
+            weight = weighted_data.get("weight", 0) * 100
+            contribution = weighted_data.get("weighted_contribution", 0) * 100
+            
+            # Shorten long area names
+            area_name = area_info["name"]
+            if len(area_name) > 35:
+                area_name = area_name[:32] + "..."
+            
+            # Color based on percentage
+            if percentage >= 75:
+                pdf.set_fill_color(220, 255, 220)
+            elif percentage >= 50:
+                pdf.set_fill_color(255, 255, 220)
             else:
-                pdf.set_fill_color(255, 220, 220)  # Very light red
-                
-            # Long area names need to be wrapped
-            if len(area_name) > 50:
-                area_name = area_name[:47] + "..."
-                
-            pdf.cell(100, 8, area_name, 1, 0, 'L')
-            pdf.cell(30, 8, f"{total:.1f}", 1, 0, 'C')
-            pdf.cell(30, 8, f"{avg:.2f}/5", 1, 1, 'C', True)
+                pdf.set_fill_color(255, 220, 220)
+            
+            pdf.cell(70, 8, area_name, 1, 0, 'L')
+            pdf.cell(25, 8, f"{score}", 1, 0, 'C')
+            pdf.cell(25, 8, f"{max_score}", 1, 0, 'C')
+            pdf.cell(25, 8, f"{percentage:.1f}%", 1, 0, 'C', True)
+            pdf.cell(25, 8, f"{weight:.0f}%", 1, 0, 'C')
+            pdf.cell(25, 8, f"{contribution:.1f}%", 1, 1, 'C')
         
+        pdf.ln(5)
+        
+        # Final score row
+        final_score = weighted_scores.get("final_composite_score", 0)
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(145, 10, "Final Composite Score:", 1, 0, 'R')
+        
+        if final_score >= 75:
+            pdf.set_fill_color(144, 238, 144)
+        elif final_score >= 50:
+            pdf.set_fill_color(255, 255, 153)
+        else:
+            pdf.set_fill_color(255, 204, 203)
+        
+        pdf.cell(50, 10, f"{final_score:.1f}%", 1, 1, 'C', True)
         pdf.ln(10)
     
     # Detailed assessment by area
     for area_id, area_info in assessment_areas.items():
         pdf.add_page()
-        pdf.section_title(f"Area Assessment: {area_info['name']}")
+        pdf.section_title(f"Area: {area_info['name']}")
         
         pdf.set_font('Arial', '', 10)
         pdf.multi_cell(0, 5, area_info["description"])
+        pdf.ln(3)
+        
+        # Display area weight and total points
+        pdf.set_font('Arial', 'B', 10)
+        pdf.cell(0, 8, f"Weight: {area_info.get('weight', 0) * 100:.0f}% | Total Points: {area_info.get('total_points', 0)}", 0, 1)
         pdf.ln(5)
         
         if area_id in assessment_results:
             area_results = assessment_results[area_id]
             
-            # Calculate scores
+            # Calculate area scores
             total_score = sum(result.get("score", 0) for result in area_results.values())
-            avg_score = total_score / len(area_results) if area_results else 0
+            max_possible = area_info.get("total_points", 1)
+            percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
             
             # Display area scores in a nice box with a colored background
-            if avg_score >= 4:
+            if percentage >= 75:
                 pdf.set_fill_color(200, 255, 200)  # Light green
-            elif avg_score >= 3:
+            elif percentage >= 50:
                 pdf.set_fill_color(255, 255, 200)  # Light yellow
             else:
                 pdf.set_fill_color(255, 220, 220)  # Light red
                 
             pdf.set_font('Arial', 'B', 12)
-            pdf.cell(190, 12, f"Area Scores: Total {total_score:.1f} | Average {avg_score:.2f}/5", 1, 1, 'C', True)
+            pdf.cell(190, 12, f"Area Score: {total_score}/{max_possible} ({percentage:.1f}%)", 1, 1, 'C', True)
             pdf.ln(5)
             
             # Create a bar chart visualization for the PDF
@@ -442,23 +482,13 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 
                 # Get criteria names and scores
                 criteria_list = list(area_results.keys())
-                criteria_list.sort()  # Sort for consistent order
                 
                 # Set up the chart dimensions
                 chart_x = 40  # Starting X position
-                chart_width = 160  # Width of chart area
-                
-                # Adjust bar height and spacing for areas with many criteria
-                # Area 2 (Impact) has 9 criteria, so we make it more compact
-                if area_id == "area2":
-                    bar_height = 6  # Smaller height for compact display
-                    space_between = 10  # Less space between bars
-                else:
-                    bar_height = 8  # Standard height for areas with fewer criteria
-                    space_between = 14  # Standard spacing
-                
-                max_bar_width = 100  # Maximum width of bars at score 5
-                header_height = 20  # Height for headers
+                max_bar_width = 100  # Maximum width of bars
+                bar_height = 7
+                space_between = 12
+                header_height = 20
                 
                 # Calculate total chart height
                 chart_height = header_height + (len(criteria_list) * (bar_height + space_between))
@@ -469,98 +499,54 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 
                 # Draw chart header
                 pdf.set_font('Arial', 'B', 11)
-                pdf.cell(0, 10, f"Criteria Scores for {area_info['name']}", 0, 1)
+                pdf.cell(0, 10, f"Criteria Scores", 0, 1)
                 
-                # Draw the scale as a color gradient
-                pdf.set_font('Arial', 'B', 8)
-                scale_y = pdf.get_y()
-                
-                # Create a label for the scale
-                pdf.text(chart_x - 35, scale_y + 3, "Score Scale:")
-                
-                # Draw colored segments for the scale
-                segment_width = max_bar_width / 5
-                
-                # First segment (1) - Red
-                pdf.set_fill_color(255, 204, 203)  # Light red
-                pdf.rect(chart_x, scale_y, segment_width, 6, 'F')
-                
-                # Second segment (2) - Light red-orange
-                pdf.set_fill_color(255, 229, 204)
-                pdf.rect(chart_x + segment_width, scale_y, segment_width, 6, 'F')
-                
-                # Third segment (3) - Yellow
-                pdf.set_fill_color(255, 255, 153)  # Light yellow
-                pdf.rect(chart_x + 2*segment_width, scale_y, segment_width, 6, 'F')
-                
-                # Fourth segment (4) - Light yellow-green
-                pdf.set_fill_color(229, 255, 204)
-                pdf.rect(chart_x + 3*segment_width, scale_y, segment_width, 6, 'F')
-                
-                # Fifth segment (5) - Green
-                pdf.set_fill_color(144, 238, 144)  # Light green
-                pdf.rect(chart_x + 4*segment_width, scale_y, segment_width, 6, 'F')
-                
-                # Add a border around the scale
-                pdf.set_draw_color(0, 0, 0)  # Black
-                pdf.rect(chart_x, scale_y, max_bar_width, 6, 'D')
-                
-                # Draw scale markers
-                pdf.set_font('Arial', '', 7)
-                for i in range(6):
-                    mark_x = chart_x + (i * segment_width)
-                    if i > 0:  # Skip the first vertical line (position 0)
-                        pdf.line(mark_x, scale_y, mark_x, scale_y + 6)
-                    # Place numbers below the scale
-                    pdf.text(mark_x - 1 if i > 0 else mark_x, scale_y + 10, str(i))
-                
-                # Move below the scale
-                pdf.ln(15)
+                pdf.ln(5)
                 
                 # Draw each criterion score as a bar
                 for crit_id in criteria_list:
-                    criterion_name = area_criteria_data[crit_id]["name"]
+                    crit_info = area_criteria_data[crit_id]
+                    criterion_name = crit_info["name"]
+                    max_score = crit_info.get("max_score", 3)
                     score = area_results[crit_id].get("score", 0)
                     
-                    # Draw criterion name - aligned to the right of the chart
+                    # Draw criterion name
                     bar_y = pdf.get_y()
                     
-                    # Draw a text to the left of the bars
-                    pdf.set_font('Arial', '', 9)
-                    # Shorten long names and ensure they fit
-                    name_width = 35  # Maximum width for names in characters
-                    if len(criterion_name) > name_width:
-                        criterion_name = criterion_name[:name_width-3] + "..."
-                    
                     # Position the text before the chart
-                    name_x = chart_x - 5
-                    pdf.set_xy(name_x - 30, bar_y)  # Position 30 units to the left of chart start
-                    pdf.cell(30, bar_height, criterion_name, 0, 0, 'R')  # Right-aligned
+                    pdf.set_font('Arial', '', 9)
+                    # Shorten long names
+                    if len(criterion_name) > 25:
+                        criterion_name = criterion_name[:22] + "..."
+                    
+                    pdf.set_xy(chart_x - 35, bar_y)
+                    pdf.cell(30, bar_height, criterion_name, 0, 0, 'R')
                     
                     # Draw bar background (gray)
-                    pdf.set_fill_color(240, 240, 240)  # Light gray
+                    pdf.set_fill_color(240, 240, 240)
                     pdf.rect(chart_x, bar_y, max_bar_width, bar_height, 'F')
                     
-                    # Choose bar color based on score
-                    if score >= 4:
+                    # Choose bar color based on score percentage
+                    score_pct = score / max_score if max_score > 0 else 0
+                    if score_pct >= 0.75:
                         pdf.set_fill_color(144, 238, 144)  # Light green
-                    elif score >= 3:
+                    elif score_pct >= 0.5:
                         pdf.set_fill_color(255, 255, 153)  # Light yellow
                     else:
                         pdf.set_fill_color(255, 204, 203)  # Light red
                     
                     # Draw the score bar
-                    bar_width = (score / 5) * max_bar_width
-                    if bar_width > 0:  # Only draw if score is greater than 0
+                    bar_width = score_pct * max_bar_width
+                    if bar_width > 0:
                         pdf.rect(chart_x, bar_y, bar_width, bar_height, 'F')
                     
                     # Add a black border around the bar
-                    pdf.set_draw_color(0, 0, 0)  # Black outline
-                    pdf.rect(chart_x, bar_y, max_bar_width, bar_height, 'D')  # Draw outline
+                    pdf.set_draw_color(0, 0, 0)
+                    pdf.rect(chart_x, bar_y, max_bar_width, bar_height, 'D')
                     
                     # Add score text
                     pdf.set_font('Arial', 'B', 8)
-                    pdf.text(chart_x + max_bar_width + 5, bar_y + (bar_height/2), f"{score}/5")
+                    pdf.text(chart_x + max_bar_width + 5, bar_y + (bar_height/2) + 2, f"{score}/{max_score}")
                     
                     # Space for next bar
                     pdf.ln(space_between)
@@ -578,7 +564,10 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
             pdf.sub_section_title("Detailed Criteria Assessment")
             
             for criterion_id, result in area_results.items():
-                criterion_name = area_criteria[criterion_id]["name"]
+                crit_info = area_criteria[criterion_id]
+                criterion_name = crit_info["name"]
+                max_score = crit_info.get("max_score", 3)
+                scoring_logic = crit_info.get("scoring_logic", "")
                 score = result.get("score", 0)
                 reasoning = result.get("reasoning", "No reasoning provided")
                 doc_ref = result.get("document_reference", "No references provided")
@@ -586,6 +575,7 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 # Sanitize the text to avoid encoding issues
                 reasoning = sanitize_text_for_pdf(reasoning)
                 doc_ref = sanitize_text_for_pdf(doc_ref)
+                scoring_logic = sanitize_text_for_pdf(scoring_logic)
                 
                 # Criterion header with box
                 pdf.set_draw_color(100, 100, 100)
@@ -593,17 +583,22 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                 pdf.set_font('Arial', 'B', 11)
                 pdf.cell(0, 8, f"{sanitize_text_for_pdf(criterion_name)}", 1, 1, 'L', True)
                 
+                # Scoring logic
+                pdf.set_font('Arial', 'I', 9)
+                pdf.cell(0, 6, f"Scoring: {scoring_logic}", 0, 1)
+                
                 # Score with colored box
-                if score >= 4:
+                score_pct = score / max_score if max_score > 0 else 0
+                if score_pct >= 0.75:
                     pdf.set_fill_color(144, 238, 144)  # Light green
-                elif score >= 3:
+                elif score_pct >= 0.5:
                     pdf.set_fill_color(255, 255, 153)  # Light yellow
                 else:
                     pdf.set_fill_color(255, 204, 203)  # Light red
                 
                 pdf.set_font('Arial', 'B', 10)
                 pdf.cell(30, 8, "Score:", 0, 0)
-                pdf.cell(20, 8, f"{score}/5", 1, 1, 'C', True)
+                pdf.cell(20, 8, f"{score}/{max_score}", 1, 1, 'C', True)
                 
                 # Reasoning
                 pdf.set_font('Arial', 'B', 10)
@@ -627,7 +622,7 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
         pdf.add_page()
         pdf.section_title("Recommendations for Improvement")
         pdf.set_font('Arial', '', 11)
-        pdf.multi_cell(0, 6, "Based on the assessment results, the following recommendations are provided to improve the policy:")
+        pdf.multi_cell(0, 6, "Based on the assessment results, the following recommendations are provided to improve the case study:")
         pdf.ln(5)
         
         # Format the recommendations text - improved handling
@@ -677,7 +672,7 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     clean_point = sanitize_text_for_pdf(clean_point)
                     pdf.set_font('Arial', '', 11)
                     # Use bullet point symbol with proper indentation
-                    pdf.cell(5, 6, "•", 0, 0)
+                    pdf.cell(5, 6, "-", 0, 0)
                     pdf.multi_cell(0, 6, clean_point)
                     pdf.ln(2)
         # Fallback in case bullet points are used
@@ -691,7 +686,7 @@ def generate_report_pdf(filename, policy_name, policy_summary, assessment_result
                     clean_point = sanitize_text_for_pdf(clean_point)
                     pdf.set_font('Arial', '', 11)
                     # Use bullet point symbol with proper indentation
-                    pdf.cell(5, 6, "•", 0, 0)
+                    pdf.cell(5, 6, "-", 0, 0)
                     pdf.multi_cell(0, 6, clean_point)
                     pdf.ln(2)
         else:

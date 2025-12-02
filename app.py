@@ -10,7 +10,7 @@ import PyPDF2
 import docx
 from datetime import datetime, timedelta
 from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart
-from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA
+from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label
 from db_models import (
     initialize_session_state, 
     register_user, 
@@ -24,8 +24,8 @@ from db_models import (
 
 # Set page configuration
 st.set_page_config(
-    page_title="Policy Insight Generator",
-    page_icon="📑",
+    page_title="Case Study Analyser",
+    page_icon="📊",
     layout="wide"
 )
 
@@ -182,6 +182,34 @@ st.markdown("""
     .user-profile .actions {
         margin-left: 10px;
     }
+    /* Score badge styling */
+    .score-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+    .score-excellent {
+        background-color: #D1FAE5;
+        color: #065F46;
+    }
+    .score-good {
+        background-color: #DBEAFE;
+        color: #1E40AF;
+    }
+    .score-satisfactory {
+        background-color: #FEF3C7;
+        color: #92400E;
+    }
+    .score-needs-improvement {
+        background-color: #FED7AA;
+        color: #9A3412;
+    }
+    .score-poor {
+        background-color: #FECACA;
+        color: #991B1B;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -193,7 +221,7 @@ def show_login_page():
     st.markdown('<div class="auth-form">', unsafe_allow_html=True)
     st.subheader("Login to Your Account")
     
-    st.info("Please enter your credentials to access the Policy Analysis Tool")
+    st.info("Please enter your credentials to access the Case Study Analyser")
     
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -254,24 +282,25 @@ def show_register_page():
 # Show login page or main app
 if not st.session_state.logged_in:
     # Application title
-    st.title("Policy Insight Generator")
+    st.title("Case Study Analyser")
     
     # Show login page
     show_login_page()
         
 else:
     # Application title and description for logged-in users
-    st.title("Policy Insight Generator")
+    st.title("Case Study Analyser")
     
     # User profile section
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown("""
-        This tool helps analyze policy documents against structured assessment criteria.
-        Upload your policy document, and the AI will evaluate it based on three key assessment areas:
-        1. Does the Draft Clearly Explain Why and What?
-        2. Does the Draft Thoroughly Assess the Impact?
-        3. Does the Draft Enable Meaningful Public Participation?
+        This tool helps analyze case studies against the CBC-India AGK Case Study Review Rubric.
+        Upload your case study document, and the AI will evaluate it based on four key assessment areas:
+        1. Structure, Chronology & Logical Flow (25%)
+        2. Language, Citations & Factual Accuracy (20%)
+        3. Alignment with Teaching Note, Sector & Competencies (25%)
+        4. Overall Effectiveness & Impact (30%)
         """)
     
     with col2:
@@ -291,18 +320,20 @@ else:
             st.rerun()
 
 # Initialize session state variables if they don't exist
-if 'policy_text' not in st.session_state:
-    st.session_state.policy_text = ""
-if 'policy_analysis' not in st.session_state:
-    st.session_state.policy_analysis = None
-if 'policy_summary' not in st.session_state:
-    st.session_state.policy_summary = ""
+if 'case_study_text' not in st.session_state:
+    st.session_state.case_study_text = ""
+if 'case_study_analysis' not in st.session_state:
+    st.session_state.case_study_analysis = None
+if 'case_study_summary' not in st.session_state:
+    st.session_state.case_study_summary = ""
 if 'assessment_results' not in st.session_state:
     st.session_state.assessment_results = {}
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
 if 'loaded_from_history' not in st.session_state:
     st.session_state.loaded_from_history = False
+if 'weighted_scores' not in st.session_state:
+    st.session_state.weighted_scores = None
 
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
@@ -326,18 +357,20 @@ with st.sidebar:
                 # Check if we're already loading from history - don't clear if so
                 if not st.session_state.get('loaded_from_history', False):
                     # Completely reset all assessment-related data
-                    if 'policy_text' in st.session_state:
-                        st.session_state.policy_text = ""
-                    if 'policy_analysis' in st.session_state:
-                        st.session_state.policy_analysis = None
-                    if 'policy_summary' in st.session_state:
-                        st.session_state.policy_summary = ""
+                    if 'case_study_text' in st.session_state:
+                        st.session_state.case_study_text = ""
+                    if 'case_study_analysis' in st.session_state:
+                        st.session_state.case_study_analysis = None
+                    if 'case_study_summary' in st.session_state:
+                        st.session_state.case_study_summary = ""
                     if 'assessment_results' in st.session_state:
                         st.session_state.assessment_results = {}
                     if 'recommendations' in st.session_state:
                         st.session_state.recommendations = ""
                     if 'document_name' in st.session_state:
                         st.session_state.document_name = ""
+                    if 'weighted_scores' in st.session_state:
+                        st.session_state.weighted_scores = None
                 else:
                     # If switching back to New Assessment with loaded content,
                     # just reset the flag for next time
@@ -352,7 +385,7 @@ with st.sidebar:
         st.markdown("---")
         
         if st.session_state.sidebar_tab == "New Assessment":
-            st.header("Upload Policy Document")
+            st.header("Upload Case Study Document")
             uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
             
             if uploaded_file is not None:
@@ -361,14 +394,14 @@ with st.sidebar:
                 # Process the uploaded file
                 try:
                     if uploaded_file.type == "application/pdf":
-                        st.session_state.policy_text = extract_text_from_pdf(uploaded_file)
+                        st.session_state.case_study_text = extract_text_from_pdf(uploaded_file)
                     elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                        st.session_state.policy_text = extract_text_from_docx(uploaded_file)
+                        st.session_state.case_study_text = extract_text_from_docx(uploaded_file)
                     
                     st.success(f"Successfully processed {uploaded_file.name}")
                     
                     # Display text length information
-                    text_length = len(st.session_state.policy_text)
+                    text_length = len(st.session_state.case_study_text)
                     st.info(f"Extracted {text_length} characters from document")
                     
                 except Exception as e:
@@ -377,17 +410,17 @@ with st.sidebar:
             # Action buttons
             st.subheader("Analysis Actions")
             
-            if st.session_state.policy_text:
+            if st.session_state.case_study_text:
                 if st.button("Generate Summary"):
-                    with st.spinner("Generating policy summary..."):
+                    with st.spinner("Generating case study summary..."):
                         prompt = f"""
-                        Please provide a concise summary of the following policy document. 
-                        Focus on the main objectives, key provisions, and policy intent:
+                        Please provide a concise summary of the following case study document. 
+                        Focus on the main theme, key events, stakeholders involved, and outcomes:
                         
-                        {st.session_state.policy_text[:4000]}  # Limit text length to avoid token limits
+                        {st.session_state.case_study_text[:4000]}
                         """
                         
-                        st.session_state.policy_summary = call_openai_api(prompt)
+                        st.session_state.case_study_summary = call_openai_api(prompt)
                 
                 if st.button("Perform Full Assessment"):
                     progress_text = st.empty()
@@ -411,23 +444,37 @@ with st.sidebar:
                             criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
                             progress_text.text(criterion_progress)
                             
-                            prompt = f"""
-                            You are a policy analysis expert. Please evaluate the following policy document 
-                            against this specific criterion: "{criterion_info['description']}"
+                            # Get the max score for this criterion
+                            max_score = criterion_info.get('max_score', 3)
+                            scoring_logic = criterion_info.get('scoring_logic', '')
+                            agent_prompt = criterion_info.get('prompt', criterion_info['description'])
                             
-                            Policy Document:
-                            {st.session_state.policy_text[:4000]}  # Limit text length
+                            prompt = f"""
+                            You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                            
+                            Evaluate the following case study document against this specific criterion:
+                            
+                            **Criterion:** {criterion_info['name']}
+                            **Description:** {criterion_info['description']}
+                            **Evaluation Task:** {agent_prompt}
+                            **Scoring Guide:** {scoring_logic}
+                            **Maximum Score:** {max_score}
+                            
+                            Case Study Document:
+                            {st.session_state.case_study_text[:6000]}
                             
                             Provide an analysis with the following JSON structure:
                             {{
-                                "score": [a number between 1 and 5, where 1 is poor and 5 is excellent],
-                                "reasoning": [detailed explanation of why this score was given as a single string, not a list],
-                                "document_reference": [specific sections or content from the document that supports this assessment as a single string, not a list]
+                                "score": [a number between 0 and {max_score}, following the scoring guide above],
+                                "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
+                                "document_reference": [specific sections or content from the document that supports this assessment as a single string]
                             }}
                             
-                            Ensure that ALL fields (score, reasoning, document_reference) are provided and that reasoning and document_reference are STRINGS, not lists or arrays.
-                            
-                            Base your evaluation on how well the document addresses this criterion.
+                            Important:
+                            - The score MUST be an integer between 0 and {max_score}
+                            - Follow the scoring logic exactly: {scoring_logic}
+                            - Provide specific evidence from the document
+                            - Ensure reasoning and document_reference are STRINGS, not lists
                             """
                             
                             with st.spinner(f"Analyzing {criterion_info['name']}..."):
@@ -439,15 +486,25 @@ with st.sidebar:
                                 if isinstance(result.get("document_reference"), list):
                                     result["document_reference"] = ". ".join(result["document_reference"])
                                 
+                                # Ensure score is within valid range
+                                score = result.get("score", 0)
+                                if isinstance(score, (int, float)):
+                                    result["score"] = min(max(0, int(score)), max_score)
+                                else:
+                                    result["score"] = 0
+                                
                                 st.session_state.assessment_results[area_id][criterion_id] = result
                             
                             # Update progress
                             processed_criteria += 1
                             progress_bar.progress(processed_criteria / total_criteria)
                     
+                    # Calculate weighted scores after assessment
+                    st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)
+                    
                     progress_text.text("Assessment complete!")
                     progress_bar.progress(100)
-                    st.success("Policy assessment completed successfully!")
+                    st.success("Case study assessment completed successfully!")
             else:
                 st.info("Please upload a document first")
                 
@@ -478,10 +535,13 @@ with st.sidebar:
                                     try:
                                         # Load assessment data into session state with history flag
                                         st.session_state.document_name = assessment.document_name
-                                        st.session_state.policy_summary = assessment.policy_summary
+                                        st.session_state.case_study_summary = assessment.policy_summary
                                         st.session_state.assessment_results = assessment.get_results_dict()
                                         st.session_state.recommendations = assessment.recommendations
-                                        st.session_state.policy_text = "Loaded from history"  # Placeholder for text
+                                        st.session_state.case_study_text = "Loaded from history"  # Placeholder for text
+                                        
+                                        # Recalculate weighted scores
+                                        st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)
                                         
                                         # Set a special flag to indicate this is from history
                                         st.session_state.loaded_from_history = True
@@ -504,52 +564,119 @@ with st.sidebar:
                     st.info("Please try refreshing or check database connection.")
     else:
         # For non-logged in users, show basic upload
-        st.header("Upload Policy Document")
-        st.info("Please login to use the policy assessment tool.")
+        st.header("Upload Case Study Document")
+        st.info("Please login to use the case study assessment tool.")
 
 # Main content area
-if st.session_state.policy_text:
+if st.session_state.case_study_text:
     # Document info section
     st.header("Document Information")
     st.write(f"**Filename:** {st.session_state.document_name}")
     
     # Summary section
-    st.header("Policy Summary")
-    if st.session_state.policy_summary:
-        st.write(st.session_state.policy_summary)
+    st.header("Case Study Summary")
+    if st.session_state.case_study_summary:
+        st.write(st.session_state.case_study_summary)
     else:
-        st.info("Click 'Generate Summary' to create a summary of the policy document")
+        st.info("Click 'Generate Summary' to create a summary of the case study document")
     
     # Assessment Results
     if st.session_state.assessment_results:
         st.header("Assessment Results")
         
+        # Display Overall Composite Score prominently
+        if st.session_state.weighted_scores:
+            ws = st.session_state.weighted_scores
+            final_score = ws["final_composite_score"]
+            grade_label = get_grade_label(final_score)
+            
+            # Create a prominent score display
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                # Determine color based on grade
+                if grade_label == "Excellent":
+                    color = "#28a745"
+                    badge_class = "score-excellent"
+                elif grade_label == "Good":
+                    color = "#3B82F6"
+                    badge_class = "score-good"
+                elif grade_label == "Satisfactory":
+                    color = "#ffc107"
+                    badge_class = "score-satisfactory"
+                elif grade_label == "Needs Improvement":
+                    color = "#fd7e14"
+                    badge_class = "score-needs-improvement"
+                else:
+                    color = "#dc3545"
+                    badge_class = "score-poor"
+                
+                st.markdown(f"""
+                <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 15px; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: #1E3A8A;">Final Composite Score</h2>
+                    <h1 style="font-size: 3.5em; margin: 10px 0; color: {color};">{final_score:.1f}%</h1>
+                    <span class="score-badge {badge_class}" style="font-size: 1.2em; padding: 8px 20px;">{grade_label}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Display weighted area breakdown
+            st.subheader("Weighted Area Scores")
+            
+            # Create columns for area scores
+            area_cols = st.columns(4)
+            for i, (area_id, area_info) in enumerate(ASSESSMENT_AREAS.items()):
+                with area_cols[i]:
+                    area_score_data = ws["area_scores"].get(area_id, {})
+                    weighted_data = ws["weighted_scores"].get(area_id, {})
+                    
+                    score = area_score_data.get("score", 0)
+                    max_score = area_score_data.get("max_score", 1)
+                    percentage = area_score_data.get("percentage", 0)
+                    weight = weighted_data.get("weight", 0) * 100
+                    contribution = weighted_data.get("weighted_contribution", 0) * 100
+                    
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 15px; background-color: #F9FAFB; border-radius: 10px; border: 1px solid #E5E7EB;">
+                        <p style="font-size: 0.85em; color: #6B7280; margin-bottom: 5px;">{area_info['name'][:25]}...</p>
+                        <h3 style="margin: 5px 0; color: #1E3A8A;">{score}/{max_score}</h3>
+                        <p style="font-size: 0.9em; color: #4B5563; margin: 0;">({percentage:.1f}%)</p>
+                        <p style="font-size: 0.8em; color: #9CA3AF; margin-top: 5px;">Weight: {weight:.0f}%</p>
+                        <p style="font-size: 0.85em; color: #059669; margin: 0;">Contribution: {contribution:.1f}%</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
         # Add export report button
         col1, col2 = st.columns([4, 1])
         with col2:
-            # Generate recommendations for policy improvement
-            if 'recommendations' not in st.session_state:
+            # Generate recommendations for case study improvement
+            if 'recommendations' not in st.session_state or not st.session_state.recommendations:
                 with st.spinner("Generating recommendations..."):
                     # Prepare data for recommendations generation
                     low_scores = []
                     for area_id, area_results in st.session_state.assessment_results.items():
                         area_name = ASSESSMENT_AREAS[area_id]["name"]
                         for criterion_id, result in area_results.items():
-                            criterion_name = ASSESSMENT_CRITERIA[area_id][criterion_id]["name"]
+                            criterion_info = ASSESSMENT_CRITERIA[area_id][criterion_id]
+                            criterion_name = criterion_info["name"]
+                            max_score = criterion_info.get("max_score", 3)
                             score = result.get("score", 0)
-                            if score < 3.5:  # Focus on areas that need improvement
+                            
+                            # Focus on areas that need improvement (less than 50% of max score)
+                            if score < max_score * 0.5:
                                 low_scores.append({
                                     "area": area_name,
                                     "criterion": criterion_name,
                                     "score": score,
+                                    "max_score": max_score,
                                     "reasoning": result.get("reasoning", "")
                                 })
                     
                     # Generate recommendations based on low scores
                     if low_scores:
                         prompt = f"""
-                        Based on the policy assessment, please generate 5-8 concrete, actionable recommendations 
-                        to improve the policy draft. Focus on addressing the following areas with low scores:
+                        Based on the case study assessment using the CBC-India AGK Case Study Review Rubric, 
+                        please generate 5-8 concrete, actionable recommendations to improve the case study.
+                        
+                        Focus on addressing the following areas with low scores:
                         
                         {json.dumps(low_scores, indent=2)}
                         
@@ -558,21 +685,20 @@ if st.session_state.policy_text:
                         paragraph without line breaks or bullets in the middle of sentences.
                         
                         Your recommendations should be:
-                        1. Specific and actionable
+                        1. Specific and actionable for case study improvement
                         2. Practical to implement
                         3. Directly address deficiencies identified in the assessment
-                        4. Written in complete sentences with proper punctuation
-                        5. Free of any hyphens, bullets, or line breaks within each recommendation
+                        4. Aligned with the AGK case study writing standards
+                        5. Written in complete sentences with proper punctuation
                         
                         Example format:
-                        Recommendation 1: [Complete sentence describing specific action] to address [specific issue]. The recommendation should include enough detail to be actionable but be contained in a single complete paragraph.
-                        
-                        Recommendation 2: [Complete sentence describing another specific action] to address [another specific issue]. Keep this as a single continuous paragraph without any internal formatting or line breaks.
+                        Recommendation 1: [Complete sentence describing specific action] to address [specific issue]. 
+                        The recommendation should include enough detail to be actionable but be contained in a single complete paragraph.
                         """
                         
                         st.session_state.recommendations = call_openai_api(prompt)
                     else:
-                        st.session_state.recommendations = "- The policy generally scores well across all assessment areas. Consider maintaining the current approach while monitoring implementation effectiveness."
+                        st.session_state.recommendations = "The case study generally scores well across all assessment areas. Consider maintaining the current approach while reviewing any minor areas for potential enhancement."
             
             # Save to history button (only shown to logged-in users)
             if st.session_state.logged_in:
@@ -583,7 +709,7 @@ if st.session_state.policy_text:
                             assessment_id = save_assessment(
                                 user_id=st.session_state.user_id,
                                 document_name=st.session_state.document_name,
-                                policy_summary=st.session_state.policy_summary,
+                                policy_summary=st.session_state.case_study_summary,
                                 assessment_results=st.session_state.assessment_results,
                                 recommendations=st.session_state.get('recommendations', "No recommendations available.")
                             )
@@ -604,15 +730,16 @@ if st.session_state.policy_text:
             st.download_button(
                 label="Export Report as PDF",
                 data=generate_report_pdf(
-                    "policy_assessment.pdf",
+                    "case_study_assessment.pdf",
                     st.session_state.document_name,
-                    st.session_state.policy_summary,
+                    st.session_state.case_study_summary,
                     st.session_state.assessment_results,
                     ASSESSMENT_AREAS,
                     ASSESSMENT_CRITERIA,
-                    st.session_state.get('recommendations', "No recommendations available.")
+                    st.session_state.get('recommendations', "No recommendations available."),
+                    st.session_state.weighted_scores
                 ),
-                file_name="policy_assessment.pdf",
+                file_name="case_study_assessment.pdf",
                 mime="application/pdf"
             )
         
@@ -623,43 +750,72 @@ if st.session_state.policy_text:
             with tabs[i]:
                 st.subheader(area_info["name"])
                 st.write(area_info["description"])
+                st.write(f"**Weight:** {area_info['weight'] * 100:.0f}% | **Total Points:** {area_info['total_points']}")
                 
                 if area_id in st.session_state.assessment_results:
                     area_criteria = ASSESSMENT_CRITERIA[area_id]
                     area_results = st.session_state.assessment_results[area_id]
                     
-                    # Calculate scores
+                    # Calculate area scores
                     total_score = sum(result.get("score", 0) for result in area_results.values())
-                    avg_score = total_score / len(area_results) if area_results else 0
+                    max_possible = area_info["total_points"]
+                    percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
                     
                     # Display scores in a metrics row
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Total Score", f"{total_score:.1f}")
+                        st.metric("Area Score", f"{total_score}/{max_possible}")
                     with col2:
-                        st.metric("Average Score", f"{avg_score:.2f}/5")
+                        st.metric("Percentage", f"{percentage:.1f}%")
+                    with col3:
+                        weighted_contribution = (area_info["weight"] * (total_score / max_possible) * 100) if max_possible > 0 else 0
+                        st.metric("Weighted Contribution", f"{weighted_contribution:.1f}%")
                     
                     # Create visualizations for scores
                     st.subheader("Score Visualization")
                     
-                    # Create gauge chart for average score
-                    gauge_fig = create_gauge_chart(avg_score, f"Average Score for {area_info['name']}")
+                    # Create gauge chart for area percentage
+                    gauge_fig = create_gauge_chart(percentage, f"Score for {area_info['name']}", max_value=100)
                     st.plotly_chart(gauge_fig)
                     
                     # Create a bar chart for all criteria scores
-                    score_data = {area_criteria[crit_id]["name"]: result.get("score", 0) 
-                                  for crit_id, result in area_results.items()}
+                    criteria_names = []
+                    criteria_scores = []
+                    criteria_max_scores = []
                     
-                    fig = px.bar(
-                        x=list(score_data.keys()),
-                        y=list(score_data.values()),
-                        labels={"x": "Criteria", "y": "Score"},
-                        title=f"Scores by Criteria for {area_info['name']}",
-                        color=list(score_data.values()),
-                        color_continuous_scale=["red", "yellow", "green"],
-                        range_color=[1, 5]
+                    for crit_id, result in area_results.items():
+                        criteria_names.append(area_criteria[crit_id]["name"])
+                        criteria_scores.append(result.get("score", 0))
+                        criteria_max_scores.append(area_criteria[crit_id].get("max_score", 3))
+                    
+                    # Create DataFrame for the chart
+                    df = pd.DataFrame({
+                        'Criteria': criteria_names,
+                        'Score': criteria_scores,
+                        'Max Score': criteria_max_scores
+                    })
+                    
+                    fig = go.Figure()
+                    
+                    # Add bars for actual scores
+                    fig.add_trace(go.Bar(
+                        x=df['Criteria'],
+                        y=df['Score'],
+                        name='Score',
+                        marker_color=['#28a745' if s/m >= 0.75 else '#ffc107' if s/m >= 0.5 else '#dc3545' 
+                                      for s, m in zip(df['Score'], df['Max Score'])],
+                        text=[f"{s}/{m}" for s, m in zip(df['Score'], df['Max Score'])],
+                        textposition='outside'
+                    ))
+                    
+                    fig.update_layout(
+                        title=f"Criteria Scores for {area_info['name']}",
+                        xaxis_title="Criteria",
+                        yaxis_title="Score",
+                        height=400,
+                        showlegend=False
                     )
-                    fig.update_layout(height=400)
+                    
                     st.plotly_chart(fig)
                     
                     # Detailed criteria analysis
@@ -667,16 +823,38 @@ if st.session_state.policy_text:
                     
                     # Display each criterion with simple formatting
                     for criterion_id, result in area_results.items():
-                        criterion_name = area_criteria[criterion_id]["name"]
-                        score = result.get("score", "N/A")
+                        criterion_info = area_criteria[criterion_id]
+                        criterion_name = criterion_info["name"]
+                        max_score = criterion_info.get("max_score", 3)
+                        scoring_logic = criterion_info.get("scoring_logic", "")
+                        score = result.get("score", 0)
                         reasoning = result.get("reasoning", "N/A")
                         doc_ref = result.get("document_reference", "N/A")
                         
+                        # Determine score color
+                        score_pct = score / max_score if max_score > 0 else 0
+                        if score_pct >= 0.75:
+                            score_color = "#28a745"
+                        elif score_pct >= 0.5:
+                            score_color = "#ffc107"
+                        else:
+                            score_color = "#dc3545"
+                        
                         with st.container():
-                            st.write(f"**{criterion_name} - Score: {score}/5**")
+                            st.markdown(f"""
+                            <div style="background-color: #F9FAFB; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid {score_color};">
+                                <h4 style="margin: 0 0 10px 0; color: #1E3A8A;">{criterion_name}</h4>
+                                <p style="font-size: 0.9em; color: #6B7280; margin-bottom: 10px;"><strong>Scoring:</strong> {scoring_logic}</p>
+                                <div style="display: inline-block; padding: 5px 15px; background-color: {score_color}; color: white; border-radius: 20px; font-weight: bold;">
+                                    Score: {score}/{max_score}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                             st.write(f"**Reasoning & Evidence:** {reasoning}")
                             st.write(f"**Document Reference:** {doc_ref}")
                             st.markdown("---")
+                    
                     # After all criteria are shown, add recommendations section
                     if 'recommendations' in st.session_state:
                         st.subheader("Recommendations for Improvement")
@@ -716,19 +894,23 @@ if st.session_state.policy_text:
     
     # Raw extracted text (collapsible)
     with st.expander("View Extracted Text"):
-        st.text_area("Document Text", st.session_state.policy_text, height=300)
+        st.text_area("Document Text", st.session_state.case_study_text, height=300)
 else:
     # Placeholder content when no document is loaded
-    st.info("Please upload a policy document to begin analysis")
+    st.info("Please upload a case study document to begin analysis")
     
     # Display info about the assessment framework
     st.header("Assessment Framework")
+    st.write("The Case Study Analyser uses the CBC-India AGK Case Study Review Rubric with four weighted assessment areas:")
+    
     for area_id, area_info in ASSESSMENT_AREAS.items():
-        with st.expander(area_info["name"]):
+        with st.expander(f"{area_info['name']} (Weight: {area_info['weight']*100:.0f}%, Total Points: {area_info['total_points']})"):
             st.write(area_info["description"])
             
             # List the criteria for this area
             st.subheader("Criteria:")
             criteria = ASSESSMENT_CRITERIA[area_id]
             for criterion_id, criterion_info in criteria.items():
-                st.write(f"**{criterion_info['name']}**: {criterion_info['description']}")
+                st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
+                st.write(f"  - {criterion_info['description']}")
+                st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")

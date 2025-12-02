@@ -18,23 +18,24 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Policy Analysis Tool"
+args = "Case Study Analyser"
 
 [[workflows.workflow]]
-name = "Policy Analysis Tool"
+name = "Case Study Analyser"
 author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "streamlit run app.py --server.port 5000"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 43369
+externalPort = 3000
