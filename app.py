@@ -322,6 +322,8 @@ else:
 # Initialize session state variables if they don't exist
 if 'case_study_text' not in st.session_state:
     st.session_state.case_study_text = ""
+if 'teaching_note_text' not in st.session_state:
+    st.session_state.teaching_note_text = ""
 if 'case_study_analysis' not in st.session_state:
     st.session_state.case_study_analysis = None
 if 'case_study_summary' not in st.session_state:
@@ -330,10 +332,14 @@ if 'assessment_results' not in st.session_state:
     st.session_state.assessment_results = {}
 if 'document_name' not in st.session_state:
     st.session_state.document_name = ""
+if 'teaching_note_name' not in st.session_state:
+    st.session_state.teaching_note_name = ""
 if 'loaded_from_history' not in st.session_state:
     st.session_state.loaded_from_history = False
 if 'weighted_scores' not in st.session_state:
     st.session_state.weighted_scores = None
+if 'competency_mapping' not in st.session_state:
+    st.session_state.competency_mapping = None
 
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
@@ -359,6 +365,8 @@ with st.sidebar:
                     # Completely reset all assessment-related data
                     if 'case_study_text' in st.session_state:
                         st.session_state.case_study_text = ""
+                    if 'teaching_note_text' in st.session_state:
+                        st.session_state.teaching_note_text = ""
                     if 'case_study_analysis' in st.session_state:
                         st.session_state.case_study_analysis = None
                     if 'case_study_summary' in st.session_state:
@@ -369,8 +377,12 @@ with st.sidebar:
                         st.session_state.recommendations = ""
                     if 'document_name' in st.session_state:
                         st.session_state.document_name = ""
+                    if 'teaching_note_name' in st.session_state:
+                        st.session_state.teaching_note_name = ""
                     if 'weighted_scores' in st.session_state:
                         st.session_state.weighted_scores = None
+                    if 'competency_mapping' in st.session_state:
+                        st.session_state.competency_mapping = None
                 else:
                     # If switching back to New Assessment with loaded content,
                     # just reset the flag for next time
@@ -385,32 +397,61 @@ with st.sidebar:
         st.markdown("---")
         
         if st.session_state.sidebar_tab == "New Assessment":
-            st.header("Upload Case Study Document")
-            uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
+            st.header("Upload Documents")
             
-            if uploaded_file is not None:
-                st.session_state.document_name = uploaded_file.name
+            st.subheader("1. Case Study Document")
+            st.caption("Upload the case study document (PDF or DOCX)")
+            case_study_file = st.file_uploader("Choose Case Study file", type=["pdf", "docx"], key="case_study_uploader")
+            
+            if case_study_file is not None:
+                st.session_state.document_name = case_study_file.name
                 
                 # Process the uploaded file
                 try:
-                    if uploaded_file.type == "application/pdf":
-                        st.session_state.case_study_text = extract_text_from_pdf(uploaded_file)
-                    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                        st.session_state.case_study_text = extract_text_from_docx(uploaded_file)
+                    if case_study_file.type == "application/pdf":
+                        st.session_state.case_study_text = extract_text_from_pdf(case_study_file)
+                    elif case_study_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        st.session_state.case_study_text = extract_text_from_docx(case_study_file)
                     
-                    st.success(f"Successfully processed {uploaded_file.name}")
-                    
-                    # Display text length information
+                    st.success(f"Case Study: {case_study_file.name}")
                     text_length = len(st.session_state.case_study_text)
-                    st.info(f"Extracted {text_length} characters from document")
+                    st.info(f"Extracted {text_length} characters")
                     
                 except Exception as e:
-                    st.error(f"Error processing document: {str(e)}")
+                    st.error(f"Error processing case study: {str(e)}")
+            
+            st.markdown("---")
+            
+            st.subheader("2. Teaching Note Document")
+            st.caption("Upload the corresponding Teaching Note (PDF or DOCX)")
+            teaching_note_file = st.file_uploader("Choose Teaching Note file", type=["pdf", "docx"], key="teaching_note_uploader")
+            
+            if teaching_note_file is not None:
+                st.session_state.teaching_note_name = teaching_note_file.name
+                
+                # Process the uploaded file
+                try:
+                    if teaching_note_file.type == "application/pdf":
+                        st.session_state.teaching_note_text = extract_text_from_pdf(teaching_note_file)
+                    elif teaching_note_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        st.session_state.teaching_note_text = extract_text_from_docx(teaching_note_file)
+                    
+                    st.success(f"Teaching Note: {teaching_note_file.name}")
+                    tn_length = len(st.session_state.teaching_note_text)
+                    st.info(f"Extracted {tn_length} characters")
+                    
+                except Exception as e:
+                    st.error(f"Error processing teaching note: {str(e)}")
             
             # Action buttons
             st.subheader("Analysis Actions")
             
-            if st.session_state.case_study_text:
+            # Check if both documents are uploaded
+            both_docs_uploaded = st.session_state.case_study_text and st.session_state.teaching_note_text
+            
+            if both_docs_uploaded:
+                st.success("Both documents uploaded. Ready for assessment.")
+                
                 if st.button("Generate Summary"):
                     with st.spinner("Generating case study summary..."):
                         prompt = f"""
@@ -428,8 +469,8 @@ with st.sidebar:
                     
                     st.session_state.assessment_results = {}
                     
-                    # Count total criteria for progress tracking
-                    total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS)
+                    # Count total criteria for progress tracking (add 1 for competency mapping)
+                    total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS) + 1
                     processed_criteria = 0
                     
                     # Process each assessment area
@@ -448,34 +489,70 @@ with st.sidebar:
                             max_score = criterion_info.get('max_score', 3)
                             scoring_logic = criterion_info.get('scoring_logic', '')
                             agent_prompt = criterion_info.get('prompt', criterion_info['description'])
+                            requires_tn = criterion_info.get('requires_teaching_note', False)
                             
-                            prompt = f"""
-                            You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
-                            
-                            Evaluate the following case study document against this specific criterion:
-                            
-                            **Criterion:** {criterion_info['name']}
-                            **Description:** {criterion_info['description']}
-                            **Evaluation Task:** {agent_prompt}
-                            **Scoring Guide:** {scoring_logic}
-                            **Maximum Score:** {max_score}
-                            
-                            Case Study Document:
-                            {st.session_state.case_study_text[:6000]}
-                            
-                            Provide an analysis with the following JSON structure:
-                            {{
-                                "score": [a number between 0 and {max_score}, following the scoring guide above],
-                                "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
-                                "document_reference": [specific sections or content from the document that supports this assessment as a single string]
-                            }}
-                            
-                            Important:
-                            - The score MUST be an integer between 0 and {max_score}
-                            - Follow the scoring logic exactly: {scoring_logic}
-                            - Provide specific evidence from the document
-                            - Ensure reasoning and document_reference are STRINGS, not lists
-                            """
+                            # Build the prompt based on whether Teaching Note is required
+                            if requires_tn or area_id == "area3":
+                                # For Area 3 (Alignment), include both case study and teaching note
+                                prompt = f"""
+                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                                
+                                Evaluate the alignment between the case study and its teaching note against this specific criterion:
+                                
+                                **Criterion:** {criterion_info['name']}
+                                **Description:** {criterion_info['description']}
+                                **Evaluation Task:** {agent_prompt}
+                                **Scoring Guide:** {scoring_logic}
+                                **Maximum Score:** {max_score}
+                                
+                                === CASE STUDY DOCUMENT ===
+                                {st.session_state.case_study_text[:5000]}
+                                
+                                === TEACHING NOTE DOCUMENT ===
+                                {st.session_state.teaching_note_text[:5000]}
+                                
+                                Provide an analysis with the following JSON structure:
+                                {{
+                                    "score": [a number between 0 and {max_score}, following the scoring guide above],
+                                    "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
+                                    "document_reference": [specific sections or content from BOTH documents that supports this assessment as a single string]
+                                }}
+                                
+                                Important:
+                                - The score MUST be an integer between 0 and {max_score}
+                                - Follow the scoring logic exactly: {scoring_logic}
+                                - Provide specific evidence from BOTH the case study AND teaching note
+                                - Ensure reasoning and document_reference are STRINGS, not lists
+                                """
+                            else:
+                                # For other areas, use only the case study
+                                prompt = f"""
+                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                                
+                                Evaluate the following case study document against this specific criterion:
+                                
+                                **Criterion:** {criterion_info['name']}
+                                **Description:** {criterion_info['description']}
+                                **Evaluation Task:** {agent_prompt}
+                                **Scoring Guide:** {scoring_logic}
+                                **Maximum Score:** {max_score}
+                                
+                                Case Study Document:
+                                {st.session_state.case_study_text[:6000]}
+                                
+                                Provide an analysis with the following JSON structure:
+                                {{
+                                    "score": [a number between 0 and {max_score}, following the scoring guide above],
+                                    "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
+                                    "document_reference": [specific sections or content from the document that supports this assessment as a single string]
+                                }}
+                                
+                                Important:
+                                - The score MUST be an integer between 0 and {max_score}
+                                - Follow the scoring logic exactly: {scoring_logic}
+                                - Provide specific evidence from the document
+                                - Ensure reasoning and document_reference are STRINGS, not lists
+                                """
                             
                             with st.spinner(f"Analyzing {criterion_info['name']}..."):
                                 result = call_openai_api(prompt, response_format="json_object")
@@ -499,6 +576,68 @@ with st.sidebar:
                             processed_criteria += 1
                             progress_bar.progress(processed_criteria / total_criteria)
                     
+                    # Generate KCM Competency Mapping
+                    progress_text.text("Mapping Karmayogi Competencies...")
+                    from assessment_criteria import KCM_COMPETENCIES
+                    
+                    kcm_prompt = f"""
+                    You are an expert in the Karmayogi Competency Model (KCM) used by the Government of India for civil service capacity building.
+                    
+                    Based on the case study below, identify the TOP 3-4 BEHAVIORAL and FUNCTIONAL competencies that are most relevant to this case.
+                    
+                    === KARMAYOGI COMPETENCY MODEL ===
+                    
+                    BEHAVIORAL COMPETENCIES:
+                    - Integrity & Ethics: Adhering to high moral standards of honesty, integrity, and fairness
+                    - Adaptability: Being willing to adjust approach as circumstances change
+                    - Compassion: Considering the well-being and feelings of others
+                    - Perpetual Learning: Always seeking to improve and grow
+                    - Commitment & Purpose: Performing duties with profound sense of purpose
+                    - Inner Calm & Balance: Maintaining balance regardless of success or failure
+                    - Attention to Detail: Giving complete attention to ensure quality
+                    
+                    FUNCTIONAL COMPETENCIES:
+                    - Citizen Centricity: Prioritizing citizen's well-being and service delivery
+                    - Accountability: Being accountable with transparency and strong work ethic
+                    - Innovation & Technology: Using technology to innovate and overcome challenges
+                    - Collaboration & Unity: Working with collective resolve
+                    - Strategic Thinking: Making decisions involving common good
+                    - Inclusive Development: Promoting Sabka Saath, Sabka Vikas
+                    - Cultural Awareness (Garva): Pride in India's heritage
+                    - Service Excellence: Striving for excellence in service
+                    
+                    === CASE STUDY ===
+                    {st.session_state.case_study_text[:5000]}
+                    
+                    Provide your analysis in the following JSON structure:
+                    {{
+                        "behavioral_competencies": [
+                            {{
+                                "name": "competency name",
+                                "justification": "brief justification of why this competency is relevant based on the case study content"
+                            }}
+                        ],
+                        "functional_competencies": [
+                            {{
+                                "name": "competency name", 
+                                "justification": "brief justification of why this competency is relevant based on the case study content"
+                            }}
+                        ]
+                    }}
+                    
+                    Important:
+                    - Select 2 behavioral and 2 functional competencies (total 4)
+                    - Provide specific justifications based on the case study content
+                    - Ensure all values are strings
+                    """
+                    
+                    with st.spinner("Mapping Karmayogi Competencies..."):
+                        competency_result = call_openai_api(kcm_prompt, response_format="json_object")
+                        st.session_state.competency_mapping = competency_result
+                    
+                    processed_criteria += 1
+                    progress_bar.progress(processed_criteria / total_criteria)
+                    
                     # Calculate weighted scores after assessment
                     st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)
                     
@@ -506,7 +645,13 @@ with st.sidebar:
                     progress_bar.progress(100)
                     st.success("Case study assessment completed successfully!")
             else:
-                st.info("Please upload a document first")
+                # Show which documents are missing
+                if not st.session_state.case_study_text and not st.session_state.teaching_note_text:
+                    st.warning("Please upload both the Case Study and Teaching Note documents to begin assessment.")
+                elif not st.session_state.case_study_text:
+                    st.warning("Please upload the Case Study document.")
+                else:
+                    st.warning("Please upload the Teaching Note document.")
                 
         elif st.session_state.sidebar_tab == "History":
             st.header("Assessment History")
@@ -855,6 +1000,44 @@ if st.session_state.case_study_text:
                             st.write(f"**Document Reference:** {doc_ref}")
                             st.markdown("---")
                     
+                    # Display KCM Competency Mapping before recommendations
+                    competency_data = st.session_state.get('competency_mapping')
+                    if competency_data and isinstance(competency_data, dict):
+                        st.subheader("Karmayogi Competency Mapping")
+                        st.write("Based on the case study analysis, the following competencies from the Karmayogi Competency Model (KCM) are most relevant:")
+                        
+                        # Behavioral Competencies
+                        behavioral_comps = competency_data.get('behavioral_competencies', [])
+                        if behavioral_comps and isinstance(behavioral_comps, list):
+                            st.markdown("#### Behavioral Competencies")
+                            for comp in behavioral_comps:
+                                if isinstance(comp, dict):
+                                    comp_name = comp.get('name', 'Unknown')
+                                    justification = comp.get('justification', 'No justification provided')
+                                    st.markdown(f"""
+                                    <div style="background-color: #E0F2FE; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0284C7;">
+                                        <strong style="color: #0369A1;">{comp_name}</strong>
+                                        <p style="margin: 8px 0 0 0; color: #374151; font-size: 0.95em;">{justification}</p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                        
+                        # Functional Competencies
+                        functional_comps = competency_data.get('functional_competencies', [])
+                        if functional_comps and isinstance(functional_comps, list):
+                            st.markdown("#### Functional Competencies")
+                            for comp in functional_comps:
+                                if isinstance(comp, dict):
+                                    comp_name = comp.get('name', 'Unknown')
+                                    justification = comp.get('justification', 'No justification provided')
+                                    st.markdown(f"""
+                                    <div style="background-color: #ECFDF5; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #059669;">
+                                        <strong style="color: #047857;">{comp_name}</strong>
+                                        <p style="margin: 8px 0 0 0; color: #374151; font-size: 0.95em;">{justification}</p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                        
+                        st.markdown("---")
+                    
                     # After all criteria are shown, add recommendations section
                     if 'recommendations' in st.session_state:
                         st.subheader("Recommendations for Improvement")
@@ -894,10 +1077,14 @@ if st.session_state.case_study_text:
     
     # Raw extracted text (collapsible)
     with st.expander("View Extracted Text"):
-        st.text_area("Document Text", st.session_state.case_study_text, height=300)
+        st.subheader("Case Study Document")
+        st.text_area("Case Study Text", st.session_state.case_study_text, height=250, key="view_case_study")
+        if st.session_state.teaching_note_text:
+            st.subheader("Teaching Note Document")
+            st.text_area("Teaching Note Text", st.session_state.teaching_note_text, height=250, key="view_teaching_note")
 else:
     # Placeholder content when no document is loaded
-    st.info("Please upload a case study document to begin analysis")
+    st.info("Please upload both Case Study and Teaching Note documents to begin analysis")
     
     # Display info about the assessment framework
     st.header("Assessment Framework")
