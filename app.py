@@ -44,32 +44,50 @@ st.markdown("""
         padding-bottom: 2rem;
     }
     
-    h1, h2, h3 {
-        color: #1E3A8A;
-        font-family: 'Poppins', sans-serif !important;
+    /* Global button styling to standardize sizes */
+    .stButton > button, .stDownloadButton > button {
+        width: 100% !important;
+        height: 50px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        margin-bottom: 10px !important;
     }
     
+    /* Criteria Tab styling with wrapping and padding */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
+        padding: 10px 0px;
     }
     
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #E5E7EB;
-        border-radius: 4px 4px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        color: #1F2937;
-        font-weight: 500;
+        height: auto !important;
+        min-height: 50px !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        max-width: 200px !important;
+        padding: 10px 15px !important;
+        line-height: 1.2 !important;
+        text-align: center !important;
+        background-color: #f0f2f6 !important;
+        border-radius: 8px 8px 0px 0px !important;
         font-family: 'Poppins', sans-serif !important;
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #3B82F6;
-        color: white;
-        font-weight: bold;
+        background-color: #074fa5 !important;
+        color: white !important;
+    }
+
+    /* Result card header wrapping */
+    .card-header, .criteria-heading, h4 {
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        line-height: 1.3 !important;
+    }
+    
+    h1, h2, h3 {
+        color: #1E3A8A;
+        font-family: 'Poppins', sans-serif !important;
     }
     
     .stTextInput, .stButton, .stSelectbox {
@@ -369,7 +387,7 @@ with st.sidebar:
                     "border-radius": "8px"
                 },
                 "nav-link-selected": {
-                    "background-color": "#DC2626",
+                    "background-color": "#074fa5",
                     "color": "white",
                     "font-weight": "600"
                 },
