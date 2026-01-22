@@ -542,10 +542,10 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                 criteria_list = list(area_results.keys())
                 
                 # Set up the chart dimensions
-                chart_x = 40  # Starting X position
+                chart_x = 55  # Increased to give more room for labels
                 max_bar_width = 100  # Maximum width of bars
-                bar_height = 7
-                space_between = 12
+                bar_height = 8
+                space_between = 5
                 header_height = 20
                 
                 # Calculate total chart height
@@ -557,9 +557,9 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                 
                 # Draw chart header
                 pdf.set_font('Arial', 'B', 11)
-                pdf.cell(0, 10, f"Criteria Scores", 0, 1)
+                pdf.cell(0, 10, f"Criteria Scores", 0, 1, 'C') # Centered header
                 
-                pdf.ln(5)
+                pdf.ln(2)
                 
                 # Draw each criterion score as a bar
                 for crit_id in criteria_list:
@@ -572,13 +572,14 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                     bar_y = pdf.get_y()
                     
                     # Position the text before the chart
-                    pdf.set_font('Arial', '', 9)
-                    # Shorten long names
-                    if len(criterion_name) > 25:
-                        criterion_name = criterion_name[:22] + "..."
+                    pdf.set_font('Arial', '', 8) # Smaller font for more room
                     
-                    pdf.set_xy(chart_x - 35, bar_y)
-                    pdf.cell(30, bar_height, criterion_name, 0, 0, 'R')
+                    # No longer truncating as aggressively, using 45 chars limit
+                    if len(criterion_name) > 45:
+                        criterion_name = criterion_name[:42] + "..."
+                    
+                    pdf.set_xy(10, bar_y) # Start from left margin
+                    pdf.cell(chart_x - 12, bar_height, criterion_name, 0, 0, 'R')
                     
                     # Draw bar background (gray)
                     pdf.set_fill_color(240, 240, 240)
@@ -604,7 +605,8 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                     
                     # Add score text
                     pdf.set_font('Arial', 'B', 8)
-                    pdf.text(chart_x + max_bar_width + 5, bar_y + (bar_height/2) + 2, f"{score}/{max_score}")
+                    pdf.set_xy(chart_x + max_bar_width + 2, bar_y)
+                    pdf.cell(15, bar_height, f"{score}/{max_score}", 0, 1, 'L')
                     
                     # Space for next bar
                     pdf.ln(space_between)
