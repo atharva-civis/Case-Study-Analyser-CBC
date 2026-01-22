@@ -394,6 +394,15 @@ with st.sidebar:
             }
         )
         
+        # Custom CSS to force white icon when selected in option-menu
+        st.markdown("""
+        <style>
+        div[data-testid="stVerticalBlock"] div.nav-link-selected i {
+            color: white !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Handle tab change
         if selected != st.session_state.sidebar_tab:
             st.session_state.sidebar_tab = selected
