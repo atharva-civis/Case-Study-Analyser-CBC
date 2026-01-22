@@ -397,7 +397,7 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
             
             for i, comp in enumerate(behavioral, 1):
                 if isinstance(comp, dict):
-                    comp_name = sanitize_text_for_pdf(comp.get("competency", "Unknown"))
+                    comp_name = sanitize_text_for_pdf(comp.get("name", comp.get("competency", "Unknown")))
                     justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
                     
                     pdf.set_font('Arial', 'B', 10)
@@ -421,7 +421,7 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
             
             for i, comp in enumerate(functional, 1):
                 if isinstance(comp, dict):
-                    comp_name = sanitize_text_for_pdf(comp.get("competency", "Unknown"))
+                    comp_name = sanitize_text_for_pdf(comp.get("name", comp.get("competency", "Unknown")))
                     justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
                     
                     pdf.set_font('Arial', 'B', 10)
