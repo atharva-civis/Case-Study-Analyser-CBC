@@ -4,6 +4,12 @@
 
 The Case Study Analyser is a Streamlit-based web application designed to evaluate case studies against the CBC-India AGK Case Study Review Rubric. The application provides automated assessment across four key areas: Structure/Chronology, Language/Citations, Alignment with Teaching Notes, and Overall Effectiveness. It uses OpenAI's API to analyze uploaded documents (PDF/DOCX), generates detailed scoring reports, and maintains user assessment history through a PostgreSQL database.
 
+### Recent Updates (January 2026)
+- **Dual Document Upload**: Now requires both Case Study and Teaching Note documents before assessment can proceed
+- **Updated Assessment Criteria**: Expanded parameters across all 4 assessment areas based on the updated Case Review Matrix
+- **Area 3 TN Integration**: Alignment with Teaching Note evaluations now analyze both Case Study and Teaching Note documents together
+- **KCM Competency Mapping**: Added Karmayogi Competency Model (KCM) mapping that identifies top 3-4 behavioral and functional competencies per case with justifications, displayed before recommendations
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
