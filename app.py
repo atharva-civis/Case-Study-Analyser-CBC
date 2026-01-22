@@ -781,7 +781,7 @@ if st.session_state.case_study_text:
             grade_label = get_grade_label(final_score)
             
             # Create a prominent score display
-            col1, col2, col3 = st.columns([1, 2, 1])
+            col1, col2, col3 = st.columns([0.1, 0.8, 0.1])
             with col2:
                 # Determine color based on grade
                 if grade_label == "Excellent":
