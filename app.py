@@ -344,55 +344,63 @@ if 'competency_mapping' not in st.session_state:
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
     if st.session_state.logged_in:
-        # Simple sidebar navigation with radio buttons in a row
-        st.header("Navigation")
-        
         # Initialize sidebar tab state if not present
         if 'sidebar_tab' not in st.session_state:
             st.session_state.sidebar_tab = "New Assessment"
         
-        # Simple radio selection
-        sidebar_tab = st.radio("", ["New Assessment", "History"])
+        # Navigation menu with styled buttons
+        st.markdown("""
+        <style>
+        .nav-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        # Set session state and rerun if changed
-        if sidebar_tab != st.session_state.sidebar_tab:
-            st.session_state.sidebar_tab = sidebar_tab
-            
-            # Clear main section content when switching tabs
-            if sidebar_tab == "New Assessment":
-                # Check if we're already loading from history - don't clear if so
-                if not st.session_state.get('loaded_from_history', False):
-                    # Completely reset all assessment-related data
-                    if 'case_study_text' in st.session_state:
-                        st.session_state.case_study_text = ""
-                    if 'teaching_note_text' in st.session_state:
-                        st.session_state.teaching_note_text = ""
-                    if 'case_study_analysis' in st.session_state:
-                        st.session_state.case_study_analysis = None
-                    if 'case_study_summary' in st.session_state:
-                        st.session_state.case_study_summary = ""
-                    if 'assessment_results' in st.session_state:
-                        st.session_state.assessment_results = {}
-                    if 'recommendations' in st.session_state:
-                        st.session_state.recommendations = ""
-                    if 'document_name' in st.session_state:
-                        st.session_state.document_name = ""
-                    if 'teaching_note_name' in st.session_state:
-                        st.session_state.teaching_note_name = ""
-                    if 'weighted_scores' in st.session_state:
-                        st.session_state.weighted_scores = None
-                    if 'competency_mapping' in st.session_state:
-                        st.session_state.competency_mapping = None
-                else:
-                    # If switching back to New Assessment with loaded content,
-                    # just reset the flag for next time
-                    st.session_state.loaded_from_history = False
-            elif sidebar_tab == "History":
-                # Reset history view data if needed
-                if 'selected_assessment' in st.session_state:
-                    st.session_state.selected_assessment = None
-            
-            st.rerun()
+        nav_col1, nav_col2 = st.columns(2)
+        with nav_col1:
+            new_assessment_type = "primary" if st.session_state.sidebar_tab == "New Assessment" else "secondary"
+            if st.button("📝 New Assessment", use_container_width=True, type=new_assessment_type):
+                if st.session_state.sidebar_tab != "New Assessment":
+                    st.session_state.sidebar_tab = "New Assessment"
+                    # Check if we're already loading from history - don't clear if so
+                    if not st.session_state.get('loaded_from_history', False):
+                        # Completely reset all assessment-related data
+                        if 'case_study_text' in st.session_state:
+                            st.session_state.case_study_text = ""
+                        if 'teaching_note_text' in st.session_state:
+                            st.session_state.teaching_note_text = ""
+                        if 'case_study_analysis' in st.session_state:
+                            st.session_state.case_study_analysis = None
+                        if 'case_study_summary' in st.session_state:
+                            st.session_state.case_study_summary = ""
+                        if 'assessment_results' in st.session_state:
+                            st.session_state.assessment_results = {}
+                        if 'recommendations' in st.session_state:
+                            st.session_state.recommendations = ""
+                        if 'document_name' in st.session_state:
+                            st.session_state.document_name = ""
+                        if 'teaching_note_name' in st.session_state:
+                            st.session_state.teaching_note_name = ""
+                        if 'weighted_scores' in st.session_state:
+                            st.session_state.weighted_scores = None
+                        if 'competency_mapping' in st.session_state:
+                            st.session_state.competency_mapping = None
+                    else:
+                        st.session_state.loaded_from_history = False
+                    st.rerun()
+        
+        with nav_col2:
+            history_type = "primary" if st.session_state.sidebar_tab == "History" else "secondary"
+            if st.button("📚 History", use_container_width=True, type=history_type):
+                if st.session_state.sidebar_tab != "History":
+                    st.session_state.sidebar_tab = "History"
+                    if 'selected_assessment' in st.session_state:
+                        st.session_state.selected_assessment = None
+                    st.rerun()
         
         st.markdown("---")
         
@@ -882,7 +890,8 @@ if st.session_state.case_study_text:
                     ASSESSMENT_AREAS,
                     ASSESSMENT_CRITERIA,
                     st.session_state.get('recommendations', "No recommendations available."),
-                    st.session_state.weighted_scores
+                    st.session_state.weighted_scores,
+                    st.session_state.get('competency_mapping', None)
                 ),
                 file_name="case_study_assessment.pdf",
                 mime="application/pdf"

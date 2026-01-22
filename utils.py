@@ -257,7 +257,7 @@ def sanitize_text_for_pdf(text):
     
     return text
 
-def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None):
+def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None, competency_mapping=None):
     """
     Generate a PDF report of the case study assessment
     
@@ -270,6 +270,7 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
         assessment_criteria (dict): Assessment criteria information
         recommendations (str, optional): Recommendations for improvement
         weighted_scores (dict, optional): Weighted score calculations
+        competency_mapping (dict, optional): KCM competency mapping with behavioral and functional competencies
         
     Returns:
         BytesIO: PDF file as BytesIO object
@@ -376,6 +377,63 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
     pdf.set_font('Arial', '', 11)
     pdf.multi_cell(0, 6, document_summary)
     pdf.ln(5)
+    
+    # KCM Competency Mapping section
+    if competency_mapping and isinstance(competency_mapping, dict):
+        pdf.section_title("KCM Competency Mapping")
+        pdf.set_font('Arial', '', 10)
+        pdf.multi_cell(0, 5, "Based on the case study analysis, the following Karmayogi Competency Model (KCM) competencies have been identified:")
+        pdf.ln(3)
+        
+        # Behavioral Competencies
+        behavioral = competency_mapping.get("behavioral_competencies", [])
+        if behavioral:
+            pdf.set_font('Arial', 'B', 11)
+            pdf.set_fill_color(30, 58, 138)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(0, 8, "Behavioral Competencies", 0, 1, 'L', True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            
+            for i, comp in enumerate(behavioral, 1):
+                if isinstance(comp, dict):
+                    comp_name = sanitize_text_for_pdf(comp.get("competency", "Unknown"))
+                    justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
+                    
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_fill_color(240, 240, 240)
+                    pdf.cell(0, 7, f"{i}. {comp_name}", 0, 1, 'L', True)
+                    
+                    pdf.set_font('Arial', '', 9)
+                    pdf.multi_cell(0, 5, f"   {justification}")
+                    pdf.ln(2)
+            pdf.ln(3)
+        
+        # Functional Competencies
+        functional = competency_mapping.get("functional_competencies", [])
+        if functional:
+            pdf.set_font('Arial', 'B', 11)
+            pdf.set_fill_color(30, 58, 138)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(0, 8, "Functional Competencies", 0, 1, 'L', True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.ln(2)
+            
+            for i, comp in enumerate(functional, 1):
+                if isinstance(comp, dict):
+                    comp_name = sanitize_text_for_pdf(comp.get("competency", "Unknown"))
+                    justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
+                    
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_fill_color(240, 240, 240)
+                    pdf.cell(0, 7, f"{i}. {comp_name}", 0, 1, 'L', True)
+                    
+                    pdf.set_font('Arial', '', 9)
+                    pdf.multi_cell(0, 5, f"   {justification}")
+                    pdf.ln(2)
+            pdf.ln(3)
+        
+        pdf.ln(5)
     
     # Weighted scoring summary
     if weighted_scores:
