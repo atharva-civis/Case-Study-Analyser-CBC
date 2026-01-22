@@ -1,5 +1,5 @@
 # Case Study Assessment Areas and Criteria
-# Based on CBC-India AGK Case Study Review Rubric
+# Based on CBC-India AGK Case Study Review Rubric (Updated)
 
 # Define the four main assessment areas with weights
 ASSESSMENT_AREAS = {
@@ -12,19 +12,19 @@ ASSESSMENT_AREAS = {
     "area2": {
         "name": "Language, Citations & Factual Accuracy",
         "description": "Ensures the case study is readable, accurate, and meets editorial and academic standards.",
-        "total_points": 9,
+        "total_points": 12,
         "weight": 0.20
     },
     "area3": {
         "name": "Alignment with Teaching Note, Sector & Competencies",
         "description": "Checks whether the case and its teaching note complement each other and align with sectoral or competency goals.",
-        "total_points": 8,
+        "total_points": 10,
         "weight": 0.25
     },
     "area4": {
         "name": "Overall Effectiveness & Impact",
         "description": "Measures how well the case study achieves its intended educational and practical outcomes.",
-        "total_points": 8,
+        "total_points": 13,
         "weight": 0.30
     }
 }
@@ -33,129 +33,251 @@ ASSESSMENT_AREAS = {
 ASSESSMENT_CRITERIA = {
     "area1": {
         "key_theme_clarity": {
-            "name": "Key Theme Clarity",
-            "description": "Is the central problem or theme clearly stated and consistently reinforced throughout the case?",
-            "prompt": "Identify if the central problem or theme is clearly stated and consistently reinforced throughout the case. Summarise the main theme in ≤ 40 words.",
+            "name": "Key Theme",
+            "description": "Is the central theme or problem statement clearly defined and runs consistently throughout the case?",
+            "prompt": "Identify if the central theme or problem statement is clearly defined and runs consistently throughout the case. Summarise the main theme in ≤ 40 words.",
+            "evaluation_approach": "Detects clarity and recurrence of central ideas.",
             "max_score": 3,
-            "scoring_logic": "3 = clear & consistent; 2 = implied; 1 = vague; 0 = missing"
+            "scoring_logic": "3 = Clear & consistent; 2 = Implied; 1 = Ambiguous; 0 = Missing"
         },
-        "chronological_flow": {
-            "name": "Chronological Flow",
-            "description": "Do events follow a logical, time-ordered sequence that aids reader comprehension?",
-            "prompt": "Check whether events follow a logical, time-ordered sequence aiding reader comprehension.",
+        "chronology_maintained": {
+            "name": "Chronology Maintained",
+            "description": "Does the sequence of events follow a logical timeline and support reader comprehension?",
+            "prompt": "Check if the sequence of events follows a logical timeline and supports reader comprehension.",
+            "evaluation_approach": "Sequence analysis for time markers and transitions.",
             "max_score": 2,
-            "scoring_logic": "2 = coherent timeline; 1 = partially ordered; 0 = confusing"
+            "scoring_logic": "2 = Sequential; 1 = Non-linear but understandable; 0 = Confusing"
         },
         "logical_coherence": {
             "name": "Logical Coherence",
-            "description": "Do arguments/events build naturally on one another?",
-            "prompt": "Examine if arguments/events build naturally on one another.",
+            "description": "Do arguments and events build naturally upon each other?",
+            "prompt": "Verify if arguments and events build naturally upon each other. Analyze paragraph transitions and causal flow.",
+            "evaluation_approach": "Analyze paragraph transitions and causal flow.",
             "max_score": 2,
-            "scoring_logic": "2 = strong causal flow; 1 = some gaps; 0 = disjointed"
+            "scoring_logic": "2 = Consistent flow; 1 = Some gaps; 0 = Disjointed"
         },
         "sectional_connectivity": {
             "name": "Sectional Connectivity",
-            "description": "Does each section connect smoothly with the previous one, forming a unified narrative?",
-            "prompt": "Evaluate whether each section connects smoothly with the previous one, forming a unified narrative.",
+            "description": "Does each section connect smoothly with the previous one, maintaining a single narrative thread?",
+            "prompt": "Ensure each section connects smoothly with the previous one, maintaining a single narrative thread.",
+            "evaluation_approach": "Semantic linkage check between sections.",
             "max_score": 2,
-            "scoring_logic": "2 = connected; 1 = partially; 0 = fragmented"
+            "scoring_logic": "2 = Connected; 1 = Partially connected; 0 = Fragmented"
         },
-        "template_adherence": {
-            "name": "Template Adherence",
-            "description": "Are all AGK template headings present and complete?",
-            "prompt": "Verify that all AGK template headings are present and complete.",
+        "agk_template_adherence": {
+            "name": "AGK Template Adherence",
+            "description": "Are all required headings under the AGK template present and complete?",
+            "prompt": "Evaluate whether all required headings under the AGK template are present and complete.",
+            "evaluation_approach": "Structural pattern recognition.",
             "max_score": 2,
-            "scoring_logic": "2 = complete; 1 = partial; 0 = missing"
+            "scoring_logic": "2 = Complete; 1 = Partial; 0 = Missing"
         },
         "captivating_hook": {
             "name": "Captivating Hook",
-            "description": "Does the introduction capture attention and set the case context effectively?",
-            "prompt": "Assess whether the introduction captures attention and sets the case context effectively.",
+            "description": "Does the introduction capture attention and set context for the case?",
+            "prompt": "Check if the introduction captures attention and sets context for the case effectively.",
+            "evaluation_approach": "Sentiment and engagement score for the opening section.",
             "max_score": 1,
-            "scoring_logic": "1 = engaging; 0 = flat"
+            "scoring_logic": "1 = Engaging; 0 = Flat"
         }
     },
     "area2": {
         "language_quality": {
             "name": "Language Quality",
-            "description": "Does the text use clear, simple, British English; avoids passive voice and jargon?",
-            "prompt": "Evaluate if the text uses clear, simple, British English; avoids passive voice and jargon.",
+            "description": "Does the text use simple, active, British English, past tense, avoiding passive voice or jargon?",
+            "prompt": "Ensure use of simple, active, and British English, past tense, avoiding passive voice or jargon.",
+            "evaluation_approach": "Grammatical pattern detection and style consistency.",
             "max_score": 3,
-            "scoring_logic": "3 = clear & active; 2 = minor issues; 1 = wordy/passive; 0 = poor"
+            "scoring_logic": "3 = Clear & active; 2 = Minor issues; 1 = Wordy/Passive; 0 = Poor"
         },
         "factual_correctness": {
             "name": "Factual Correctness",
-            "description": "Are facts/data/events accurate and supported by citations or references?",
-            "prompt": "Verify whether facts/data/events are accurate and supported by citations or references.",
+            "description": "Are all facts, data, and events verified with cited or linked evidence?",
+            "prompt": "Verify all facts, data, and events with cited or linked evidence.",
+            "evaluation_approach": "Cross-reference with cited sources or databases.",
             "max_score": 3,
-            "scoring_logic": "3 = verified; 2 = minor gaps; 1 = questionable; 0 = unverified"
+            "scoring_logic": "3 = Accurate; 2 = Minor gaps; 1 = Questionable; 0 = Unverified"
+        },
+        "tone_neutrality_bias": {
+            "name": "Tone Neutrality and Bias Check",
+            "description": "Is the narrative neutral, avoiding opinions, and staying evidence-based?",
+            "prompt": "Ensure the narrative is neutral, avoids opinions, and stays evidence-based. Check for any bias in the presentation.",
+            "evaluation_approach": "Sentiment neutrality scoring and bias detection.",
+            "max_score": 2,
+            "scoring_logic": "2 = Neutral; 1 = Slightly biased; 0 = Biased"
         },
         "citation_quality": {
             "name": "Citation Quality",
-            "description": "Are citations valid, functional, and properly formatted?",
-            "prompt": "Check if citations are valid, functional, and properly formatted.",
+            "description": "Are all sources valid, functional, and properly formatted?",
+            "prompt": "Confirm that all sources are valid, functional, and properly formatted.",
+            "evaluation_approach": "Link validation and citation parsing.",
             "max_score": 2,
-            "scoring_logic": "2 = all verified; 1 = partially; 0 = broken/missing"
+            "scoring_logic": "2 = Verified; 1 = Partially valid; 0 = Broken/Missing"
         },
-        "additional_readings": {
+        "additional_readings_sec2": {
             "name": "Additional Readings",
-            "description": "Are recommended supplementary materials or related cases present?",
-            "prompt": "Look for the presence of recommended supplementary materials or related cases.",
-            "max_score": 1,
-            "scoring_logic": "1 = present; 0 = absent"
+            "description": "Are recommended similar cases or supplementary materials present?",
+            "prompt": "Identify the presence of recommended similar cases or supplementary materials.",
+            "evaluation_approach": "Scan for 'further reading' or 'reference' sections.",
+            "max_score": 2,
+            "scoring_logic": "2 = Present & comprehensive; 1 = Present but limited; 0 = Absent"
         }
     },
     "area3": {
         "learning_objectives_alignment": {
             "name": "Learning Objectives Alignment",
-            "description": "Does the case content support the teaching note's stated learning objectives?",
-            "prompt": "Cross-check if the case content supports the teaching note's stated learning objectives.",
+            "description": "Does case study content reflect and reinforce the teaching note's learning objectives?",
+            "prompt": "Check if case study content reflects and reinforces the teaching note's learning objectives. Cross-map objective keywords between documents.",
+            "evaluation_approach": "Textual cross-mapping of objective keywords.",
             "max_score": 3,
-            "scoring_logic": "3 = fully aligned; 2 = partial; 1 = weak; 0 = not aligned"
+            "scoring_logic": "3 = Aligned; 2 = Partially aligned; 1 = Weakly aligned; 0 = Not aligned",
+            "requires_teaching_note": True
         },
         "theories_frameworks": {
-            "name": "Theories & Frameworks",
-            "description": "Does the TN include relevant theoretical or analytical frameworks linked to the case?",
-            "prompt": "Identify whether the TN includes relevant theoretical or analytical frameworks linked to the case.",
+            "name": "Theories and Frameworks",
+            "description": "Does the TN include relevant theoretical models connected to the case?",
+            "prompt": "Ensure TN includes relevant theoretical models connected to the case (e.g., SWOT, 7S, etc.).",
+            "evaluation_approach": "Detect framework references.",
             "max_score": 2,
-            "scoring_logic": "2 = present & used; 1 = named but unused; 0 = missing"
+            "scoring_logic": "2 = Present & used; 1 = Named but unused; 0 = Missing",
+            "requires_teaching_note": True
         },
         "competency_alignment": {
             "name": "Competency Alignment",
-            "description": "Are Karmayogi competencies mapped appropriately and evident in the narrative?",
-            "prompt": "Evaluate mapping of Karmayogi competencies—are they appropriate and evident in the narrative?",
+            "description": "Are competencies from the Karmayogi Competency Model tagged and logically fit the case?",
+            "prompt": "Verify tagging of competencies from the Karmayogi Competency Model, ensuring they logically fit the case. Match listed competencies with inferred behavioral indicators.",
+            "evaluation_approach": "Match listed competencies with inferred behavioral indicators.",
             "max_score": 2,
-            "scoring_logic": "2 = strong; 1 = weak; 0 = absent"
+            "scoring_logic": "2 = Strong alignment; 1 = Weak alignment; 0 = Absent",
+            "requires_teaching_note": True
         },
-        "sector_theme_classification": {
-            "name": "Sector / Theme Classification (SDG Linkage)",
+        "sector_theme_sdg": {
+            "name": "Sector/Theme Classification (SDG Linkage)",
             "description": "Is the case tagged to the correct sector or SDG theme?",
-            "prompt": "Confirm that the case is tagged to the correct sector or SDG theme.",
+            "prompt": "Confirm correct tagging of the broader policy or thematic area and SDG linkage.",
+            "evaluation_approach": "Semantic matching with pre-defined sector taxonomy.",
+            "max_score": 2,
+            "scoring_logic": "2 = Correct & comprehensive; 1 = Partially correct; 0 = Misclassified",
+            "requires_teaching_note": True
+        },
+        "additional_readings_sec3": {
+            "name": "Additional Readings (TN)",
+            "description": "Are recommended similar cases or supplementary materials present in TN?",
+            "prompt": "Identify the presence of recommended similar cases or supplementary materials in the Teaching Note.",
+            "evaluation_approach": "Scan for 'further reading' or 'reference' sections in TN.",
             "max_score": 1,
-            "scoring_logic": "1 = correct; 0 = misclassified"
+            "scoring_logic": "1 = Present; 0 = Absent",
+            "requires_teaching_note": True
         }
     },
     "area4": {
         "delivery_implementation_clarity": {
             "name": "Delivery & Implementation Clarity",
-            "description": "Are problems and solutions clearly articulated, and is implementation described logically?",
-            "prompt": "Assess if problems and solutions are clearly articulated, and whether implementation is described logically.",
+            "description": "Are challenges clearly articulated and solutions well explained?",
+            "prompt": "Evaluate how challenges are articulated and whether solutions are well explained. Extract problem-solution pairs and measure clarity.",
+            "evaluation_approach": "Extract problem-solution pairs and measure clarity score.",
             "max_score": 3,
-            "scoring_logic": "3 = clear; 2 = partial; 1 = ambiguous; 0 = missing"
+            "scoring_logic": "3 = Clear; 2 = Partial; 1 = Incomplete; 0 = Ambiguous"
+        },
+        "protagonist_stakeholder": {
+            "name": "Protagonist & Stakeholder Perspectives",
+            "description": "Are perspectives of relevant stakeholders included and is the protagonist clearly identified?",
+            "prompt": "Check if perspectives of relevant stakeholders are included and the protagonist is clearly identified.",
+            "evaluation_approach": "Named-entity and role extraction, stakeholder mapping.",
+            "max_score": 3,
+            "scoring_logic": "3 = Clear protagonist & stakeholders; 2 = Partial coverage; 1 = Minimal; 0 = Missing"
         },
         "best_practices_lessons": {
             "name": "Best Practices & Lessons",
-            "description": "Are explicit best practices, lessons learned, or innovative methods emerging from the narrative?",
-            "prompt": "Detect explicit best practices, lessons learned, or innovative methods emerging from the narrative.",
+            "description": "Are lessons, replicable methods, or innovative practices clearly emerging from the narrative?",
+            "prompt": "Identify lessons, replicable methods, or innovative practices clearly emerging from the narrative.",
+            "evaluation_approach": "Keyword mapping and semantic clustering for 'best practice' phrases.",
             "max_score": 2,
-            "scoring_logic": "2 = evident; 1 = weak; 0 = missing"
+            "scoring_logic": "2 = Evident; 1 = Weak; 0 = Missing"
         },
         "impact_visibility": {
             "name": "Impact Visibility",
             "description": "Are results, transformations, or measurable outcomes described and substantiated?",
-            "prompt": "Check if the results, transformations, or measurable outcomes are described and substantiated.",
+            "prompt": "Determine whether results, transformations, or outcomes are described and substantiated.",
+            "evaluation_approach": "Detection of outcome or results sections.",
             "max_score": 3,
-            "scoring_logic": "3 = visible & supported; 2 = partial; 1 = minimal; 0 = absent"
+            "scoring_logic": "3 = Visible & supported; 2 = Partial; 1 = Minimal; 0 = Absent"
+        },
+        "data_exhibits_quality": {
+            "name": "Data and Exhibits Quality",
+            "description": "Are data tables, figures, and exhibits relevant, clear, and sourced?",
+            "prompt": "Assess whether data tables, figures, and exhibits are relevant, clear, and properly sourced.",
+            "evaluation_approach": "Format detection and source mapping.",
+            "max_score": 2,
+            "scoring_logic": "2 = Strong; 1 = Needs improvement; 0 = Missing"
+        }
+    }
+}
+
+# Karmayogi Competency Model - Core competencies for case study mapping
+KCM_COMPETENCIES = {
+    "behavioral": {
+        "integrity_ethics": {
+            "name": "Integrity & Ethics",
+            "description": "Adhering to high moral standards of honesty, integrity, and fairness in all actions."
+        },
+        "adaptability": {
+            "name": "Adaptability",
+            "description": "Recognizing that circumstances are dynamic and being willing to adjust approach as needed."
+        },
+        "compassion": {
+            "name": "Compassion",
+            "description": "Approaching work with a compassionate heart, considering the well-being and feelings of others."
+        },
+        "perpetual_learning": {
+            "name": "Perpetual Learning",
+            "description": "Always seeking to improve and grow, remaining open to new experiences, knowledge, and insights."
+        },
+        "commitment_purpose": {
+            "name": "Commitment & Purpose",
+            "description": "Performing duties with a profound sense of commitment and purpose, recognizing role in the larger scheme."
+        },
+        "inner_balance": {
+            "name": "Inner Calm & Balance",
+            "description": "Maintaining inner calm and balance regardless of success or failure."
+        },
+        "attention_detail": {
+            "name": "Attention to Detail",
+            "description": "Being fully present in the moment, giving complete attention to ensure utmost care and quality."
+        }
+    },
+    "functional": {
+        "citizen_centricity": {
+            "name": "Citizen Centricity",
+            "description": "Prioritizing Jana-Hita (citizen's well-being) and delivering efficient citizen-centric services."
+        },
+        "accountability": {
+            "name": "Accountability",
+            "description": "Being accountable to the citizens of the country with transparency and strong work ethic."
+        },
+        "innovation": {
+            "name": "Innovation & Technology",
+            "description": "Using technology to innovate and overcome challenges, encouraging entrepreneurial spirit."
+        },
+        "collaboration": {
+            "name": "Collaboration & Unity",
+            "description": "Working with collective resolve, promoting cooperative federation and strength in unity."
+        },
+        "strategic_thinking": {
+            "name": "Strategic Thinking",
+            "description": "Making decisions involving common good while focusing on factors of unity underlying national diversity."
+        },
+        "inclusive_development": {
+            "name": "Inclusive Development",
+            "description": "Promoting Sabka Saath, Sabka Vikas - inclusive economic and social development."
+        },
+        "cultural_awareness": {
+            "name": "Cultural Awareness (Garva)",
+            "description": "Pride in India's tangible and intangible heritage, promoting Indian Knowledge Systems."
+        },
+        "service_excellence": {
+            "name": "Service Excellence",
+            "description": "Striving for excellence in work and taking pride in providing the best service to citizens."
         }
     }
 }
