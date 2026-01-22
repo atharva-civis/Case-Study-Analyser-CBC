@@ -816,18 +816,24 @@ if st.session_state.case_study_text:
                     contribution = weighted_data.get("weighted_contribution", 0) * 100
                     
                     st.markdown(f"""
-                    <div style="text-align: center; padding: 15px; background-color: #F9FAFB; border-radius: 10px; border: 1px solid #E5E7EB;">
-                        <p style="font-size: 0.85em; color: #6B7280; margin-bottom: 5px;">{area_info['name'][:25]}...</p>
-                        <h3 style="margin: 5px 0; color: #1E3A8A;">{score}/{max_score}</h3>
-                        <p style="font-size: 0.9em; color: #4B5563; margin: 0;">({percentage:.1f}%)</p>
-                        <p style="font-size: 0.8em; color: #9CA3AF; margin-top: 5px;">Weight: {weight:.0f}%</p>
-                        <p style="font-size: 0.85em; color: #059669; margin: 0;">Contribution: {contribution:.1f}%</p>
+                    <div style="text-align: center; padding: 15px; background-color: #F9FAFB; border-radius: 10px; border: 1px solid #E5E7EB; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <p style="font-size: 0.85em; color: #6B7280; margin-bottom: 10px; line-height: 1.2; font-weight: 500;">{area_info['name']}</p>
+                            <h3 style="margin: 10px 0; color: #1E3A8A; font-size: 1.6em;">{score}/{max_score}</h3>
+                            <p style="font-size: 0.95em; color: #4B5563; margin: 0; font-weight: 500;">({percentage:.1f}%)</p>
+                        </div>
+                        <div style="border-top: 1px solid #E5E7EB; padding-top: 10px; margin-top: 10px;">
+                            <p style="font-size: 0.8em; color: #9CA3AF; margin-bottom: 2px;">Weight: {weight:.0f}%</p>
+                            <p style="font-size: 0.85em; color: #059669; margin: 0; font-weight: 600;">Contribution: {contribution:.1f}%</p>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
         
-        # Add export report button
-        col1, col2 = st.columns([4, 1])
-        with col2:
+        # Action buttons section
+        st.markdown("<br>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        
+        with col1:
             # Generate recommendations for case study improvement
             if 'recommendations' not in st.session_state or not st.session_state.recommendations:
                 with st.spinner("Generating recommendations..."):
@@ -883,7 +889,7 @@ if st.session_state.case_study_text:
             
             # Save to history button (only shown to logged-in users)
             if st.session_state.logged_in:
-                if st.button("Save to History"):
+                if st.button("💾 Save to History", use_container_width=True):
                     if st.session_state.user_id:
                         # Save assessment to database
                         try:
@@ -898,7 +904,6 @@ if st.session_state.case_study_text:
                             if assessment_id:
                                 # Make success message more prominent
                                 st.success(f"Assessment successfully saved to your history!")
-                                st.info("You can view it in the History tab.")
                             else:
                                 st.error("Failed to save assessment. Database error occurred.")
                         except Exception as e:
@@ -906,10 +911,11 @@ if st.session_state.case_study_text:
                             st.info("Please try again or check database connection.")
                     else:
                         st.error("Error saving assessment. Please try again.")
-            
+        
+        with col2:
             # Export as PDF button
             st.download_button(
-                label="Export Report as PDF",
+                label="📄 Export Report as PDF",
                 data=generate_report_pdf(
                     "case_study_assessment.pdf",
                     st.session_state.document_name,
@@ -922,8 +928,11 @@ if st.session_state.case_study_text:
                     st.session_state.get('competency_mapping', None)
                 ),
                 file_name="case_study_assessment.pdf",
-                mime="application/pdf"
+                mime="application/pdf",
+                use_container_width=True
             )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # Create tabs for each assessment area
         tabs = st.tabs([ASSESSMENT_AREAS[area_id]["name"] for area_id in ASSESSMENT_AREAS])
