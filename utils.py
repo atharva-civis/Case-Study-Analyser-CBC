@@ -391,18 +391,20 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
             pdf.set_font('Arial', 'B', 11)
             pdf.set_fill_color(30, 58, 138)
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 8, "Behavioral Competencies", 0, 1, 'L', True)
+            pdf.cell(0, 8, "Behavioral Sub-competencies", 0, 1, 'L', True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(2)
             
             for i, comp in enumerate(behavioral, 1):
                 if isinstance(comp, dict):
-                    comp_name = sanitize_text_for_pdf(comp.get("name", comp.get("competency", "Unknown")))
+                    comp_name = sanitize_text_for_pdf(comp.get("name", "Unknown"))
+                    parent = sanitize_text_for_pdf(comp.get("parent_competency", ""))
+                    display_name = f"{comp_name} ({parent})" if parent else comp_name
                     justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
                     
                     pdf.set_font('Arial', 'B', 10)
                     pdf.set_fill_color(240, 240, 240)
-                    pdf.cell(0, 7, f"{i}. {comp_name}", 0, 1, 'L', True)
+                    pdf.cell(0, 7, f"{i}. {display_name}", 0, 1, 'L', True)
                     
                     pdf.set_font('Arial', '', 9)
                     pdf.multi_cell(0, 5, f"   {justification}")
@@ -415,18 +417,20 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
             pdf.set_font('Arial', 'B', 11)
             pdf.set_fill_color(30, 58, 138)
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 8, "Functional Competencies", 0, 1, 'L', True)
+            pdf.cell(0, 8, "Functional Sub-competencies", 0, 1, 'L', True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(2)
             
             for i, comp in enumerate(functional, 1):
                 if isinstance(comp, dict):
-                    comp_name = sanitize_text_for_pdf(comp.get("name", comp.get("competency", "Unknown")))
+                    comp_name = sanitize_text_for_pdf(comp.get("name", "Unknown"))
+                    parent = sanitize_text_for_pdf(comp.get("parent_competency", ""))
+                    display_name = f"{comp_name} ({parent})" if parent else comp_name
                     justification = sanitize_text_for_pdf(comp.get("justification", "No justification provided"))
                     
                     pdf.set_font('Arial', 'B', 10)
                     pdf.set_fill_color(240, 240, 240)
-                    pdf.cell(0, 7, f"{i}. {comp_name}", 0, 1, 'L', True)
+                    pdf.cell(0, 7, f"{i}. {display_name}", 0, 1, 'L', True)
                     
                     pdf.set_font('Arial', '', 9)
                     pdf.multi_cell(0, 5, f"   {justification}")

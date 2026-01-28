@@ -214,70 +214,85 @@ ASSESSMENT_CRITERIA = {
     }
 }
 
-# Karmayogi Competency Model - Core competencies for case study mapping
+# Karmayogi Competency Model - Core competencies and sub-competencies for case study mapping
 KCM_COMPETENCIES = {
     "behavioral": {
         "integrity_ethics": {
             "name": "Integrity & Ethics",
-            "description": "Adhering to high moral standards of honesty, integrity, and fairness in all actions."
+            "description": "Adhering to high moral standards of honesty, integrity, and fairness in all actions.",
+            "sub_competencies": ["Honesty", "Fairness", "Moral Courage", "Consistency", "Transparency"]
         },
         "adaptability": {
             "name": "Adaptability",
-            "description": "Recognizing that circumstances are dynamic and being willing to adjust approach as needed."
+            "description": "Recognizing that circumstances are dynamic and being willing to adjust approach as needed.",
+            "sub_competencies": ["Flexibility", "Openness to Change", "Resilience", "Versatility"]
         },
         "compassion": {
             "name": "Compassion",
-            "description": "Approaching work with a compassionate heart, considering the well-being and feelings of others."
+            "description": "Approaching work with a compassionate heart, considering the well-being and feelings of others.",
+            "sub_competencies": ["Empathy", "Sensitivity", "Kindness", "Supportive"]
         },
         "perpetual_learning": {
             "name": "Perpetual Learning",
-            "description": "Always seeking to improve and grow, remaining open to new experiences, knowledge, and insights."
+            "description": "Always seeking to improve and grow, remaining open to new experiences, knowledge, and insights.",
+            "sub_competencies": ["Self-Development", "Inquisitiveness", "Knowledge Sharing", "Reflective Practice"]
         },
         "commitment_purpose": {
             "name": "Commitment & Purpose",
-            "description": "Performing duties with a profound sense of commitment and purpose, recognizing role in the larger scheme."
+            "description": "Performing duties with a profound sense of commitment and purpose, recognizing role in the larger scheme.",
+            "sub_competencies": ["Dedication", "Goal Orientation", "Public Service Value", "Mission Focus"]
         },
         "inner_balance": {
             "name": "Inner Calm & Balance",
-            "description": "Maintaining inner calm and balance regardless of success or failure."
+            "description": "Maintaining inner calm and balance regardless of success or failure.",
+            "sub_competencies": ["Emotional Intelligence", "Stress Management", "Equanimity", "Self-Regulation"]
         },
         "attention_detail": {
             "name": "Attention to Detail",
-            "description": "Being fully present in the moment, giving complete attention to ensure utmost care and quality."
+            "description": "Being fully present in the moment, giving complete attention to ensure utmost care and quality.",
+            "sub_competencies": ["Precision", "Thoroughness", "Meticulousness", "Quality Consciousness"]
         }
     },
     "functional": {
         "citizen_centricity": {
             "name": "Citizen Centricity",
-            "description": "Prioritizing Jana-Hita (citizen's well-being) and delivering efficient citizen-centric services."
+            "description": "Prioritizing Jana-Hita (citizen's well-being) and delivering efficient citizen-centric services.",
+            "sub_competencies": ["User-Centric Design", "Responsive Service", "Public Interest", "Service Delivery Focus"]
         },
         "accountability": {
             "name": "Accountability",
-            "description": "Being accountable to the citizens of the country with transparency and strong work ethic."
+            "description": "Being accountable to the citizens of the country with transparency and strong work ethic.",
+            "sub_competencies": ["Responsibility", "Transparency", "Results Orientation", "Ethical Governance"]
         },
         "innovation": {
             "name": "Innovation & Technology",
-            "description": "Using technology to innovate and overcome challenges, encouraging entrepreneurial spirit."
+            "description": "Using technology to innovate and overcome challenges, encouraging entrepreneurial spirit.",
+            "sub_competencies": ["Digital Literacy", "Creative Problem Solving", "Process Improvement", "Tech Adoption"]
         },
         "collaboration": {
             "name": "Collaboration & Unity",
-            "description": "Working with collective resolve, promoting cooperative federation and strength in unity."
+            "description": "Working with collective resolve, promoting cooperative federation and strength in unity.",
+            "sub_competencies": ["Teamwork", "Stakeholder Engagement", "Partnership Building", "Conflict Resolution"]
         },
         "strategic_thinking": {
             "name": "Strategic Thinking",
-            "description": "Making decisions involving common good while focusing on factors of unity underlying national diversity."
+            "description": "Making decisions involving common good while focusing on factors of unity underlying national diversity.",
+            "sub_competencies": ["Visionary Planning", "Systems Thinking", "Policy Analysis", "Risk Assessment"]
         },
         "inclusive_development": {
             "name": "Inclusive Development",
-            "description": "Promoting Sabka Saath, Sabka Vikas - inclusive economic and social development."
+            "description": "Promoting Sabka Saath, Sabka Vikas - inclusive economic and social development.",
+            "sub_competencies": ["Social Equity", "Diversity & Inclusion", "Sustainable Growth", "Poverty Alleviation"]
         },
         "cultural_awareness": {
             "name": "Cultural Awareness (Garva)",
-            "description": "Pride in India's tangible and intangible heritage, promoting Indian Knowledge Systems."
+            "description": "Pride in India's tangible and intangible heritage, promoting Indian Knowledge Systems.",
+            "sub_competencies": ["Heritage Appreciation", "Local Context Awareness", "Indigenous Knowledge Support", "National Identity"]
         },
         "service_excellence": {
             "name": "Service Excellence",
-            "description": "Striving for excellence in work and taking pride in providing the best service to citizens."
+            "description": "Striving for excellence in work and taking pride in providing the best service to citizens.",
+            "sub_competencies": ["Standard Setting", "Efficiency", "Continuous Improvement", "Benchmarking"]
         }
     }
 }

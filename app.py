@@ -628,28 +628,28 @@ with st.sidebar:
                     kcm_prompt = f"""
                     You are an expert in the Karmayogi Competency Model (KCM) used by the Government of India for civil service capacity building.
                     
-                    Based on the case study below, identify the TOP 3-4 BEHAVIORAL and FUNCTIONAL competencies that are most relevant to this case.
+                    Based on the case study below, identify the TOP 3-4 SUB-COMPETENCIES (not just the broad competencies) that are most relevant to this case.
                     
-                    === KARMAYOGI COMPETENCY MODEL ===
+                    === KARMAYOGI COMPETENCY MODEL (Competencies & their Sub-competencies) ===
                     
-                    BEHAVIORAL COMPETENCIES:
-                    - Integrity & Ethics: Adhering to high moral standards of honesty, integrity, and fairness
-                    - Adaptability: Being willing to adjust approach as circumstances change
-                    - Compassion: Considering the well-being and feelings of others
-                    - Perpetual Learning: Always seeking to improve and grow
-                    - Commitment & Purpose: Performing duties with profound sense of purpose
-                    - Inner Calm & Balance: Maintaining balance regardless of success or failure
-                    - Attention to Detail: Giving complete attention to ensure quality
+                    BEHAVIORAL:
+                    - Integrity & Ethics: Honesty, Fairness, Moral Courage, Consistency, Transparency
+                    - Adaptability: Flexibility, Openness to Change, Resilience, Versatility
+                    - Compassion: Empathy, Sensitivity, Kindness, Supportive
+                    - Perpetual Learning: Self-Development, Inquisitiveness, Knowledge Sharing, Reflective Practice
+                    - Commitment & Purpose: Dedication, Goal Orientation, Public Service Value, Mission Focus
+                    - Inner Calm & Balance: Emotional Intelligence, Stress Management, Equanimity, Self-Regulation
+                    - Attention to Detail: Precision, Thoroughness, Meticulousness, Quality Consciousness
                     
-                    FUNCTIONAL COMPETENCIES:
-                    - Citizen Centricity: Prioritizing citizen's well-being and service delivery
-                    - Accountability: Being accountable with transparency and strong work ethic
-                    - Innovation & Technology: Using technology to innovate and overcome challenges
-                    - Collaboration & Unity: Working with collective resolve
-                    - Strategic Thinking: Making decisions involving common good
-                    - Inclusive Development: Promoting Sabka Saath, Sabka Vikas
-                    - Cultural Awareness (Garva): Pride in India's heritage
-                    - Service Excellence: Striving for excellence in service
+                    FUNCTIONAL:
+                    - Citizen Centricity: User-Centric Design, Responsive Service, Public Interest, Service Delivery Focus
+                    - Accountability: Responsibility, Transparency, Results Orientation, Ethical Governance
+                    - Innovation & Technology: Digital Literacy, Creative Problem Solving, Process Improvement, Tech Adoption
+                    - Collaboration & Unity: Teamwork, Stakeholder Engagement, Partnership Building, Conflict Resolution
+                    - Strategic Thinking: Visionary Planning, Systems Thinking, Policy Analysis, Risk Assessment
+                    - Inclusive Development: Social Equity, Diversity & Inclusion, Sustainable Growth, Poverty Alleviation
+                    - Cultural Awareness (Garva): Heritage Appreciation, Local Context Awareness, Indigenous Knowledge Support, National Identity
+                    - Service Excellence: Standard Setting, Efficiency, Continuous Improvement, Benchmarking
                     
                     === CASE STUDY ===
                     {st.session_state.case_study_text[:5000]}
@@ -658,22 +658,24 @@ with st.sidebar:
                     {{
                         "behavioral_competencies": [
                             {{
-                                "name": "competency name",
-                                "justification": "brief justification of why this competency is relevant based on the case study content"
+                                "name": "sub-competency name",
+                                "parent_competency": "broad competency name",
+                                "justification": "brief justification of why this sub-competency is relevant"
                             }}
                         ],
                         "functional_competencies": [
                             {{
-                                "name": "competency name", 
-                                "justification": "brief justification of why this competency is relevant based on the case study content"
+                                "name": "sub-competency name", 
+                                "parent_competency": "broad competency name",
+                                "justification": "brief justification of why this sub-competency is relevant"
                             }}
                         ]
                     }}
                     
                     Important:
-                    - Select 2 behavioral and 2 functional competencies (total 4)
-                    - Provide specific justifications based on the case study content
-                    - Ensure all values are strings
+                    - Identify specific SUB-COMPETENCIES from the provided list.
+                    - Select 2 behavioral and 2 functional sub-competencies (total 4).
+                    - Ensure all values are strings.
                     """
                     
                     with st.spinner("Mapping Karmayogi Competencies..."):
@@ -1064,14 +1066,16 @@ if st.session_state.case_study_text:
                         # Behavioral Competencies
                         behavioral_comps = competency_data.get('behavioral_competencies', [])
                         if behavioral_comps and isinstance(behavioral_comps, list):
-                            st.markdown("#### Behavioral Competencies")
+                            st.markdown("#### Behavioral Sub-competencies")
                             for comp in behavioral_comps:
                                 if isinstance(comp, dict):
                                     comp_name = comp.get('name', 'Unknown')
+                                    parent = comp.get('parent_competency', '')
+                                    display_name = f"{comp_name} ({parent})" if parent else comp_name
                                     justification = comp.get('justification', 'No justification provided')
                                     st.markdown(f"""
                                     <div style="background-color: #E0F2FE; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0284C7;">
-                                        <strong style="color: #0369A1;">{comp_name}</strong>
+                                        <strong style="color: #0369A1;">{display_name}</strong>
                                         <p style="margin: 8px 0 0 0; color: #374151; font-size: 0.95em;">{justification}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
@@ -1079,14 +1083,16 @@ if st.session_state.case_study_text:
                         # Functional Competencies
                         functional_comps = competency_data.get('functional_competencies', [])
                         if functional_comps and isinstance(functional_comps, list):
-                            st.markdown("#### Functional Competencies")
+                            st.markdown("#### Functional Sub-competencies")
                             for comp in functional_comps:
                                 if isinstance(comp, dict):
                                     comp_name = comp.get('name', 'Unknown')
+                                    parent = comp.get('parent_competency', '')
+                                    display_name = f"{comp_name} ({parent})" if parent else comp_name
                                     justification = comp.get('justification', 'No justification provided')
                                     st.markdown(f"""
                                     <div style="background-color: #ECFDF5; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #059669;">
-                                        <strong style="color: #047857;">{comp_name}</strong>
+                                        <strong style="color: #047857;">{display_name}</strong>
                                         <p style="margin: 8px 0 0 0; color: #374151; font-size: 0.95em;">{justification}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
