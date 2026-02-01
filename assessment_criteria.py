@@ -6,26 +6,26 @@ ASSESSMENT_AREAS = {
     "area1": {
         "name": "Structure, Chronology & Logical Flow",
         "description": "Evaluates whether the case study is well-organised, follows a logical sequence, and maintains reader engagement.",
-        "total_points": 12,
-        "weight": 0.25
+        "total_points": 14,
+        "weight": 0.30
     },
     "area2": {
         "name": "Language, Citations & Factual Accuracy",
         "description": "Ensures the case study is readable, accurate, and meets editorial and academic standards.",
-        "total_points": 12,
-        "weight": 0.20
+        "total_points": 14,
+        "weight": 0.30
     },
     "area3": {
         "name": "Alignment with Teaching Note, Sector & Competencies",
         "description": "Checks whether the case and its teaching note complement each other and align with sectoral or competency goals.",
         "total_points": 10,
-        "weight": 0.25
+        "weight": 0.15
     },
     "area4": {
         "name": "Overall Effectiveness & Impact",
         "description": "Measures how well the case study achieves its intended educational and practical outcomes.",
         "total_points": 13,
-        "weight": 0.30
+        "weight": 0.25
     }
 }
 
@@ -45,16 +45,16 @@ ASSESSMENT_CRITERIA = {
             "description": "Does the sequence of events follow a logical timeline and support reader comprehension?",
             "prompt": "Check if the sequence of events follows a logical timeline and supports reader comprehension.",
             "evaluation_approach": "Sequence analysis for time markers and transitions.",
-            "max_score": 2,
-            "scoring_logic": "2 = Sequential; 1 = Non-linear but understandable; 0 = Confusing"
+            "max_score": 3,
+            "scoring_logic": "3 = Clear sequential timeline; 2 = Sequential with minor gaps; 1 = Non-linear but understandable; 0 = Confusing"
         },
         "logical_coherence": {
             "name": "Logical Coherence",
             "description": "Do arguments and events build naturally upon each other?",
             "prompt": "Verify if arguments and events build naturally upon each other. Analyze paragraph transitions and causal flow.",
             "evaluation_approach": "Analyze paragraph transitions and causal flow.",
-            "max_score": 2,
-            "scoring_logic": "2 = Consistent flow; 1 = Some gaps; 0 = Disjointed"
+            "max_score": 3,
+            "scoring_logic": "3 = Excellent flow; 2 = Consistent flow; 1 = Some gaps; 0 = Disjointed"
         },
         "sectional_connectivity": {
             "name": "Sectional Connectivity",
@@ -87,40 +87,32 @@ ASSESSMENT_CRITERIA = {
             "description": "Does the text use simple, active, British English, past tense, avoiding passive voice or jargon?",
             "prompt": "Ensure use of simple, active, and British English, past tense, avoiding passive voice or jargon.",
             "evaluation_approach": "Grammatical pattern detection and style consistency.",
-            "max_score": 3,
-            "scoring_logic": "3 = Clear & active; 2 = Minor issues; 1 = Wordy/Passive; 0 = Poor"
+            "max_score": 4,
+            "scoring_logic": "4 = Excellent clarity & active voice; 3 = Clear & active; 2 = Minor issues; 1 = Wordy/Passive; 0 = Poor"
         },
         "factual_correctness": {
             "name": "Factual Correctness",
             "description": "Are all facts, data, and events verified with cited or linked evidence?",
             "prompt": "Verify all facts, data, and events with cited or linked evidence.",
             "evaluation_approach": "Cross-reference with cited sources or databases.",
-            "max_score": 3,
-            "scoring_logic": "3 = Accurate; 2 = Minor gaps; 1 = Questionable; 0 = Unverified"
+            "max_score": 4,
+            "scoring_logic": "4 = Fully accurate & well-documented; 3 = Accurate; 2 = Minor gaps; 1 = Questionable; 0 = Unverified"
         },
         "tone_neutrality_bias": {
             "name": "Tone Neutrality and Bias Check",
             "description": "Is the narrative neutral, avoiding opinions, and staying evidence-based?",
             "prompt": "Ensure the narrative is neutral, avoids opinions, and stays evidence-based. Check for any bias in the presentation.",
             "evaluation_approach": "Sentiment neutrality scoring and bias detection.",
-            "max_score": 2,
-            "scoring_logic": "2 = Neutral; 1 = Slightly biased; 0 = Biased"
+            "max_score": 3,
+            "scoring_logic": "3 = Completely neutral & evidence-based; 2 = Neutral; 1 = Slightly biased; 0 = Biased"
         },
         "citation_quality": {
             "name": "Citation Quality",
             "description": "Are all sources valid, functional, and properly formatted?",
             "prompt": "Confirm that all sources are valid, functional, and properly formatted.",
             "evaluation_approach": "Link validation and citation parsing.",
-            "max_score": 2,
-            "scoring_logic": "2 = Verified; 1 = Partially valid; 0 = Broken/Missing"
-        },
-        "additional_readings_sec2": {
-            "name": "Additional Readings",
-            "description": "Are recommended similar cases or supplementary materials present?",
-            "prompt": "Identify the presence of recommended similar cases or supplementary materials.",
-            "evaluation_approach": "Scan for 'further reading' or 'reference' sections.",
-            "max_score": 2,
-            "scoring_logic": "2 = Present & comprehensive; 1 = Present but limited; 0 = Absent"
+            "max_score": 3,
+            "scoring_logic": "3 = All sources verified & well-formatted; 2 = Verified; 1 = Partially valid; 0 = Broken/Missing"
         }
     },
     "area3": {
