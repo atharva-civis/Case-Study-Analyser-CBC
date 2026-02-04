@@ -298,17 +298,29 @@ def show_register_page():
     
     st.markdown('</div>', unsafe_allow_html=True)
 
+# Function to display header with logos
+def display_header_with_logos():
+    col1, col2, col3 = st.columns([1, 4, 1])
+    with col1:
+        if os.path.exists("attached_assets/cbc_logo_1770210514857.png"):
+            st.image("attached_assets/cbc_logo_1770210514857.png", width=100)
+    with col2:
+        st.title("Case Study Analyser")
+    with col3:
+        if os.path.exists("attached_assets/agk_logo_1770210514857.png"):
+            st.image("attached_assets/agk_logo_1770210514857.png", width=100)
+
 # Show login page or main app
 if not st.session_state.logged_in:
-    # Application title
-    st.title("Case Study Analyser")
+    # Application title with logos
+    display_header_with_logos()
     
     # Show login page
     show_login_page()
         
 else:
-    # Application title and description for logged-in users
-    st.title("Case Study Analyser")
+    # Application title and description for logged-in users with logos
+    display_header_with_logos()
     
     # User profile section
     col1, col2 = st.columns([3, 1])
@@ -316,10 +328,10 @@ else:
         st.markdown("""
         This tool helps analyze case studies against the CBC-India AGK Case Study Review Rubric.
         Upload your case study document, and the AI will evaluate it based on four key assessment areas:
-        1. Structure, Chronology & Logical Flow (25%)
-        2. Language, Citations & Factual Accuracy (20%)
-        3. Alignment with Teaching Note, Sector & Competencies (25%)
-        4. Overall Effectiveness & Impact (30%)
+        1. Structure, Chronology & Logical Flow (30%)
+        2. Language, Citations & Factual Accuracy (30%)
+        3. Alignment with Teaching Note, Sector & Competencies (15%)
+        4. Overall Effectiveness & Impact (25%)
         """)
     
     with col2:
@@ -360,9 +372,23 @@ if 'weighted_scores' not in st.session_state:
 if 'competency_mapping' not in st.session_state:
     st.session_state.competency_mapping = None
 
+# Function to display logos side by side
+def display_logos():
+    col1, col2 = st.columns(2)
+    with col1:
+        if os.path.exists("attached_assets/cbc_logo_1770210514857.png"):
+            st.image("attached_assets/cbc_logo_1770210514857.png", width=120)
+    with col2:
+        if os.path.exists("attached_assets/agk_logo_1770210514857.png"):
+            st.image("attached_assets/agk_logo_1770210514857.png", width=120)
+
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
     if st.session_state.logged_in:
+        # Display logos at the top of sidebar
+        display_logos()
+        st.markdown("---")
+        
         # Initialize sidebar tab state if not present
         if 'sidebar_tab' not in st.session_state:
             st.session_state.sidebar_tab = "New Assessment"

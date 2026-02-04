@@ -331,6 +331,20 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
+    # Add logos side by side at the top
+    logo_width = 35
+    page_width = 210  # A4 width in mm
+    total_logo_width = logo_width * 2 + 20  # Two logos with gap
+    start_x = (page_width - total_logo_width) / 2
+    
+    cbc_logo_path = "attached_assets/cbc_logo_1770210514857.png"
+    agk_logo_path = "attached_assets/agk_logo_1770210514857.png"
+    
+    if os.path.exists(cbc_logo_path) and os.path.exists(agk_logo_path):
+        pdf.image(cbc_logo_path, x=start_x, y=15, w=logo_width)
+        pdf.image(agk_logo_path, x=start_x + logo_width + 20, y=15, w=logo_width)
+        pdf.ln(35)
+    
     # Cover page with title and document info
     pdf.set_font('Arial', 'B', 20)
     pdf.cell(0, 20, 'Case Study Assessment Report', 0, 1, 'C')
