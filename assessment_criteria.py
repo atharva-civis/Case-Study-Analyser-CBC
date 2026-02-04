@@ -6,7 +6,7 @@ ASSESSMENT_AREAS = {
     "area1": {
         "name": "Structure, Chronology & Logical Flow",
         "description": "Evaluates whether the case study is well-organised, follows a logical sequence, and maintains reader engagement.",
-        "total_points": 14,
+        "total_points": 12,
         "weight": 0.30
     },
     "area2": {
@@ -24,7 +24,7 @@ ASSESSMENT_AREAS = {
     "area4": {
         "name": "Overall Effectiveness & Impact",
         "description": "Measures how well the case study achieves its intended educational and practical outcomes.",
-        "total_points": 13,
+        "total_points": 11,
         "weight": 0.25
     }
 }
@@ -63,14 +63,6 @@ ASSESSMENT_CRITERIA = {
             "evaluation_approach": "Semantic linkage check between sections.",
             "max_score": 2,
             "scoring_logic": "2 = Connected; 1 = Partially connected; 0 = Fragmented"
-        },
-        "agk_template_adherence": {
-            "name": "AGK Template Adherence",
-            "description": "Are all required headings under the AGK template present and complete?",
-            "prompt": "Evaluate whether all required headings under the AGK template are present and complete.",
-            "evaluation_approach": "Structural pattern recognition.",
-            "max_score": 2,
-            "scoring_logic": "2 = Complete; 1 = Partial; 0 = Missing"
         },
         "captivating_hook": {
             "name": "Captivating Hook",
@@ -194,14 +186,6 @@ ASSESSMENT_CRITERIA = {
             "evaluation_approach": "Detection of outcome or results sections.",
             "max_score": 3,
             "scoring_logic": "3 = Visible & supported; 2 = Partial; 1 = Minimal; 0 = Absent"
-        },
-        "data_exhibits_quality": {
-            "name": "Data and Exhibits Quality",
-            "description": "Are data tables, figures, and exhibits relevant, clear, and sourced?",
-            "prompt": "Assess whether data tables, figures, and exhibits are relevant, clear, and properly sourced.",
-            "evaluation_approach": "Format detection and source mapping.",
-            "max_score": 2,
-            "scoring_logic": "2 = Strong; 1 = Needs improvement; 0 = Missing"
         }
     }
 }
