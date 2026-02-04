@@ -880,6 +880,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl", hash = "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1", size = 525554, upload-time = "2020-10-08T19:00:49.856Z" },
 ]
 
+[package.optional-dependencies]
+bcrypt = [
+    { name = "bcrypt" },
+]
+
 [[package]]
 name = "pillow"
 version = "11.1.0"
@@ -1192,7 +1197,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openai" },
     { name = "pandas" },
-    { name = "passlib" },
+    { name = "passlib", extra = ["bcrypt"] },
     { name = "plotly" },
     { name = "psycopg2-binary" },
     { name = "pypdf2" },
@@ -1213,7 +1218,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.4" },
     { name = "openai", specifier = ">=1.68.2" },
     { name = "pandas", specifier = ">=2.2.3" },
-    { name = "passlib", specifier = ">=1.7.4" },
+    { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "plotly", specifier = ">=6.0.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pypdf2", specifier = ">=3.0.1" },
