@@ -1,4 +1,4 @@
-modules = ["python-3.11", "postgresql-16"]
+modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
@@ -7,6 +7,7 @@ packages = ["cairo", "cargo", "ffmpeg-full", "freetype", "ghostscript", "glibcLo
 [deployment]
 deploymentTarget = "autoscale"
 run = ["sh", "-c", "streamlit run app.py --server.port 5000"]
+build = ["sh", "-c", "pip install -r <(pip freeze)"]
 
 [workflows]
 runButton = "Project"
