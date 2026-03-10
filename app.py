@@ -556,15 +556,40 @@ with st.sidebar:
                             criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
                             progress_text.text(criterion_progress)
                             
-                            # Get the max score for this criterion
-                            max_score = criterion_info.get('max_score', 3)
+                            is_informational = criterion_info.get('informational', False)
+                            max_score = criterion_info.get('max_score', 3) if not is_informational else 0
                             scoring_logic = criterion_info.get('scoring_logic', '')
                             agent_prompt = criterion_info.get('prompt', criterion_info['description'])
                             requires_tn = criterion_info.get('requires_teaching_note', False)
                             
-                            # Build the prompt based on whether Teaching Note is required
-                            if requires_tn or area_id == "area3":
-                                # For Area 3 (Alignment), include both case study and teaching note
+                            if is_informational:
+                                prompt = f"""
+                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                                
+                                Provide a detailed narrative analysis for the following criterion. Do NOT provide a score — this is an informational assessment only.
+                                
+                                **Criterion:** {criterion_info['name']}
+                                **Description:** {criterion_info['description']}
+                                **Analysis Task:** {agent_prompt}
+                                
+                                === CASE STUDY DOCUMENT ===
+                                {st.session_state.case_study_text[:5000]}
+                                
+                                === TEACHING NOTE DOCUMENT ===
+                                {st.session_state.teaching_note_text[:5000]}
+                                
+                                Provide your analysis in the following JSON structure:
+                                {{
+                                    "narrative": [a detailed narrative analysis addressing the criterion, as a single string],
+                                    "document_reference": [specific sections or content from BOTH documents that supports this analysis as a single string]
+                                }}
+                                
+                                Important:
+                                - Do NOT include a score — this criterion is informational only
+                                - Provide a thorough, well-structured narrative
+                                - Ensure narrative and document_reference are STRINGS, not lists
+                                """
+                            elif requires_tn or area_id == "area3":
                                 prompt = f"""
                                 You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
                                 
@@ -628,18 +653,26 @@ with st.sidebar:
                             with st.spinner(f"Analyzing {criterion_info['name']}..."):
                                 result = call_openai_api(prompt, response_format="json_object")
                                 
-                                # Ensure consistent data types - convert any lists to strings
-                                if isinstance(result.get("reasoning"), list):
-                                    result["reasoning"] = ". ".join(result["reasoning"])
-                                if isinstance(result.get("document_reference"), list):
-                                    result["document_reference"] = ". ".join(result["document_reference"])
-                                
-                                # Ensure score is within valid range
-                                score = result.get("score", 0)
-                                if isinstance(score, (int, float)):
-                                    result["score"] = min(max(0, int(score)), max_score)
-                                else:
+                                if is_informational:
+                                    if isinstance(result.get("narrative"), list):
+                                        result["narrative"] = ". ".join(result["narrative"])
+                                    if not result.get("narrative"):
+                                        result["narrative"] = result.get("reasoning", "No analysis available.")
+                                    if isinstance(result.get("document_reference"), list):
+                                        result["document_reference"] = ". ".join(result["document_reference"])
                                     result["score"] = 0
+                                    result["informational"] = True
+                                else:
+                                    if isinstance(result.get("reasoning"), list):
+                                        result["reasoning"] = ". ".join(result["reasoning"])
+                                    if isinstance(result.get("document_reference"), list):
+                                        result["document_reference"] = ". ".join(result["document_reference"])
+                                    
+                                    score = result.get("score", 0)
+                                    if isinstance(score, (int, float)):
+                                        result["score"] = min(max(0, int(score)), max_score)
+                                    else:
+                                        result["score"] = 0
                                 
                                 st.session_state.assessment_results[area_id][criterion_id] = result
                             
@@ -880,11 +913,12 @@ if st.session_state.case_study_text:
                         area_name = ASSESSMENT_AREAS[area_id]["name"]
                         for criterion_id, result in area_results.items():
                             criterion_info = ASSESSMENT_CRITERIA[area_id][criterion_id]
+                            if criterion_info.get("informational", False):
+                                continue
                             criterion_name = criterion_info["name"]
                             max_score = criterion_info.get("max_score", 3)
                             score = result.get("score", 0)
                             
-                            # Focus on areas that need improvement (less than 50% of max score)
                             if score < max_score * 0.5:
                                 low_scores.append({
                                     "area": area_name,
@@ -984,8 +1018,10 @@ if st.session_state.case_study_text:
                     area_criteria = ASSESSMENT_CRITERIA[area_id]
                     area_results = st.session_state.assessment_results[area_id]
                     
-                    # Calculate area scores
-                    total_score = sum(result.get("score", 0) for result in area_results.values())
+                    total_score = sum(
+                        result.get("score", 0) for crit_id, result in area_results.items()
+                        if not ASSESSMENT_CRITERIA.get(area_id, {}).get(crit_id, {}).get("informational", False)
+                    )
                     max_possible = area_info["total_points"]
                     percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
                     
@@ -1006,12 +1042,13 @@ if st.session_state.case_study_text:
                     gauge_fig = create_gauge_chart(percentage, f"Score for {area_info['name']}", max_value=100)
                     st.plotly_chart(gauge_fig)
                     
-                    # Create a bar chart for all criteria scores
                     criteria_names = []
                     criteria_scores = []
                     criteria_max_scores = []
                     
                     for crit_id, result in area_results.items():
+                        if area_criteria[crit_id].get("informational", False):
+                            continue
                         criteria_names.append(area_criteria[crit_id]["name"])
                         criteria_scores.append(result.get("score", 0))
                         criteria_max_scores.append(area_criteria[crit_id].get("max_score", 3))
@@ -1049,39 +1086,55 @@ if st.session_state.case_study_text:
                     # Detailed criteria analysis
                     st.subheader("Detailed Assessment")
                     
-                    # Display each criterion with simple formatting
                     for criterion_id, result in area_results.items():
                         criterion_info = area_criteria[criterion_id]
                         criterion_name = criterion_info["name"]
-                        max_score = criterion_info.get("max_score", 3)
-                        scoring_logic = criterion_info.get("scoring_logic", "")
-                        score = result.get("score", 0)
-                        reasoning = result.get("reasoning", "N/A")
+                        is_info = criterion_info.get("informational", False)
                         doc_ref = result.get("document_reference", "N/A")
                         
-                        # Determine score color
-                        score_pct = score / max_score if max_score > 0 else 0
-                        if score_pct >= 0.75:
-                            score_color = "#28a745"
-                        elif score_pct >= 0.5:
-                            score_color = "#ffc107"
-                        else:
-                            score_color = "#dc3545"
-                        
-                        with st.container():
-                            st.markdown(f"""
-                            <div style="background-color: #F9FAFB; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid {score_color};">
-                                <h4 style="margin: 0 0 10px 0; color: #1E3A8A;">{criterion_name}</h4>
-                                <p style="font-size: 0.9em; color: #6B7280; margin-bottom: 10px;"><strong>Scoring:</strong> {scoring_logic}</p>
-                                <div style="display: inline-block; padding: 5px 15px; background-color: {score_color}; color: white; border-radius: 20px; font-weight: bold;">
-                                    Score: {score}/{max_score}
+                        if is_info:
+                            narrative = result.get("narrative", result.get("reasoning", "N/A"))
+                            with st.container():
+                                st.markdown(f"""
+                                <div style="background-color: #EFF6FF; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #3B82F6;">
+                                    <h4 style="margin: 0 0 10px 0; color: #1E3A8A;">{criterion_name}</h4>
+                                    <div style="display: inline-block; padding: 5px 15px; background-color: #3B82F6; color: white; border-radius: 20px; font-weight: bold; font-size: 0.85em;">
+                                        ℹ Informational
+                                    </div>
                                 </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                                """, unsafe_allow_html=True)
+                                
+                                st.write(f"**Analysis:** {narrative}")
+                                st.write(f"**Document Reference:** {doc_ref}")
+                                st.markdown("---")
+                        else:
+                            max_score = criterion_info.get("max_score", 3)
+                            scoring_logic = criterion_info.get("scoring_logic", "")
+                            score = result.get("score", 0)
+                            reasoning = result.get("reasoning", "N/A")
                             
-                            st.write(f"**Reasoning & Evidence:** {reasoning}")
-                            st.write(f"**Document Reference:** {doc_ref}")
-                            st.markdown("---")
+                            score_pct = score / max_score if max_score > 0 else 0
+                            if score_pct >= 0.75:
+                                score_color = "#28a745"
+                            elif score_pct >= 0.5:
+                                score_color = "#ffc107"
+                            else:
+                                score_color = "#dc3545"
+                            
+                            with st.container():
+                                st.markdown(f"""
+                                <div style="background-color: #F9FAFB; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid {score_color};">
+                                    <h4 style="margin: 0 0 10px 0; color: #1E3A8A;">{criterion_name}</h4>
+                                    <p style="font-size: 0.9em; color: #6B7280; margin-bottom: 10px;"><strong>Scoring:</strong> {scoring_logic}</p>
+                                    <div style="display: inline-block; padding: 5px 15px; background-color: {score_color}; color: white; border-radius: 20px; font-weight: bold;">
+                                        Score: {score}/{max_score}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                st.write(f"**Reasoning & Evidence:** {reasoning}")
+                                st.write(f"**Document Reference:** {doc_ref}")
+                                st.markdown("---")
                     
                     # Display KCM Competency Mapping before recommendations
                     competency_data = st.session_state.get('competency_mapping')
@@ -1185,6 +1238,10 @@ else:
             st.subheader("Criteria:")
             criteria = ASSESSMENT_CRITERIA[area_id]
             for criterion_id, criterion_info in criteria.items():
-                st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
-                st.write(f"  - {criterion_info['description']}")
-                st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")
+                if criterion_info.get("informational", False):
+                    st.write(f"**{criterion_info['name']}** (Informational — no score)")
+                    st.write(f"  - {criterion_info['description']}")
+                else:
+                    st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
+                    st.write(f"  - {criterion_info['description']}")
+                    st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")

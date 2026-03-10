@@ -534,8 +534,12 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
         if area_id in assessment_results:
             area_results = assessment_results[area_id]
             
-            # Calculate area scores
-            total_score = sum(result.get("score", 0) for result in area_results.values())
+            # Calculate area scores (skip informational criteria)
+            area_criteria_defs = assessment_criteria.get(area_id, {})
+            total_score = sum(
+                result.get("score", 0) for crit_id, result in area_results.items()
+                if not area_criteria_defs.get(crit_id, {}).get("informational", False)
+            )
             max_possible = area_info.get("total_points", 1)
             percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
             
@@ -581,9 +585,11 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                 
                 pdf.ln(2)
                 
-                # Draw each criterion score as a bar
+                # Draw each criterion score as a bar (skip informational criteria)
                 for crit_id in criteria_list:
                     crit_info = area_criteria_data[crit_id]
+                    if crit_info.get("informational", False):
+                        continue
                     criterion_name = crit_info["name"]
                     max_score = crit_info.get("max_score", 3)
                     score = area_results[crit_id].get("score", 0)
@@ -646,53 +652,79 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
             for criterion_id, result in area_results.items():
                 crit_info = area_criteria[criterion_id]
                 criterion_name = crit_info["name"]
-                max_score = crit_info.get("max_score", 3)
-                scoring_logic = crit_info.get("scoring_logic", "")
-                score = result.get("score", 0)
-                reasoning = result.get("reasoning", "No reasoning provided")
-                doc_ref = result.get("document_reference", "No references provided")
-                
-                # Sanitize the text to avoid encoding issues
-                reasoning = sanitize_text_for_pdf(reasoning)
-                doc_ref = sanitize_text_for_pdf(doc_ref)
-                scoring_logic = sanitize_text_for_pdf(scoring_logic)
-                
-                # Criterion header with box
-                pdf.set_draw_color(100, 100, 100)
-                pdf.set_fill_color(240, 248, 255)  # Light blue background
-                pdf.set_font('Arial', 'B', 11)
-                pdf.cell(0, 8, f"{sanitize_text_for_pdf(criterion_name)}", 1, 1, 'L', True)
-                
-                # Scoring logic
-                pdf.set_font('Arial', 'I', 9)
-                pdf.cell(0, 6, f"Scoring: {scoring_logic}", 0, 1)
-                
-                # Score with colored box
-                score_pct = score / max_score if max_score > 0 else 0
-                if score_pct >= 0.75:
-                    pdf.set_fill_color(144, 238, 144)  # Light green
-                elif score_pct >= 0.5:
-                    pdf.set_fill_color(255, 255, 153)  # Light yellow
+                is_informational = crit_info.get("informational", False)
+
+                if is_informational:
+                    narrative = result.get("narrative", result.get("reasoning", "No analysis provided"))
+                    narrative = sanitize_text_for_pdf(narrative)
+
+                    pdf.set_draw_color(59, 130, 246)
+                    pdf.set_fill_color(219, 234, 254)
+                    pdf.set_font('Arial', 'B', 11)
+                    pdf.cell(0, 8, f"{sanitize_text_for_pdf(criterion_name)} (Informational)", 1, 1, 'L', True)
+
+                    pdf.set_font('Arial', 'I', 9)
+                    pdf.set_text_color(59, 130, 246)
+                    pdf.cell(0, 6, "This criterion provides informational analysis and is not scored.", 0, 1)
+                    pdf.set_text_color(0, 0, 0)
+
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.cell(0, 8, "Analysis:", 0, 1)
+                    pdf.set_font('Arial', '', 10)
+                    pdf.multi_cell(0, 6, narrative)
+
+                    doc_ref = result.get("document_reference", "")
+                    if doc_ref:
+                        doc_ref = sanitize_text_for_pdf(doc_ref)
+                        pdf.set_font('Arial', 'B', 10)
+                        pdf.cell(0, 8, "Document References:", 0, 1)
+                        pdf.set_font('Arial', 'I', 9)
+                        pdf.multi_cell(0, 6, doc_ref)
+
+                    pdf.set_draw_color(0, 0, 0)
+                    pdf.ln(5)
                 else:
-                    pdf.set_fill_color(255, 204, 203)  # Light red
-                
-                pdf.set_font('Arial', 'B', 10)
-                pdf.cell(30, 8, "Score:", 0, 0)
-                pdf.cell(20, 8, f"{score}/{max_score}", 1, 1, 'C', True)
-                
-                # Reasoning
-                pdf.set_font('Arial', 'B', 10)
-                pdf.cell(0, 8, "Reasoning & Evidence:", 0, 1)
-                pdf.set_font('Arial', '', 10)
-                pdf.multi_cell(0, 6, reasoning)
-                
-                # Document references
-                pdf.set_font('Arial', 'B', 10)
-                pdf.cell(0, 8, "Document References:", 0, 1)
-                pdf.set_font('Arial', 'I', 9)
-                pdf.multi_cell(0, 6, doc_ref)
-                
-                pdf.ln(5)
+                    max_score = crit_info.get("max_score", 3)
+                    scoring_logic = crit_info.get("scoring_logic", "")
+                    score = result.get("score", 0)
+                    reasoning = result.get("reasoning", "No reasoning provided")
+                    doc_ref = result.get("document_reference", "No references provided")
+
+                    reasoning = sanitize_text_for_pdf(reasoning)
+                    doc_ref = sanitize_text_for_pdf(doc_ref)
+                    scoring_logic = sanitize_text_for_pdf(scoring_logic)
+
+                    pdf.set_draw_color(100, 100, 100)
+                    pdf.set_fill_color(240, 248, 255)
+                    pdf.set_font('Arial', 'B', 11)
+                    pdf.cell(0, 8, f"{sanitize_text_for_pdf(criterion_name)}", 1, 1, 'L', True)
+
+                    pdf.set_font('Arial', 'I', 9)
+                    pdf.cell(0, 6, f"Scoring: {scoring_logic}", 0, 1)
+
+                    score_pct = score / max_score if max_score > 0 else 0
+                    if score_pct >= 0.75:
+                        pdf.set_fill_color(144, 238, 144)
+                    elif score_pct >= 0.5:
+                        pdf.set_fill_color(255, 255, 153)
+                    else:
+                        pdf.set_fill_color(255, 204, 203)
+
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.cell(30, 8, "Score:", 0, 0)
+                    pdf.cell(20, 8, f"{score}/{max_score}", 1, 1, 'C', True)
+
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.cell(0, 8, "Reasoning & Evidence:", 0, 1)
+                    pdf.set_font('Arial', '', 10)
+                    pdf.multi_cell(0, 6, reasoning)
+
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.cell(0, 8, "Document References:", 0, 1)
+                    pdf.set_font('Arial', 'I', 9)
+                    pdf.multi_cell(0, 6, doc_ref)
+
+                    pdf.ln(5)
         else:
             pdf.set_font('Arial', 'I', 10)
             pdf.cell(0, 10, "No assessment data available for this area", 0, 1)

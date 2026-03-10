@@ -4,7 +4,8 @@
 
 The Case Study Analyser is a Streamlit-based web application designed to evaluate case studies against the CBC-India AGK Case Study Review Rubric. The application provides automated assessment across four key areas: Structure/Chronology, Language/Citations, Alignment with Teaching Notes, and Overall Effectiveness. It uses OpenAI's API to analyze uploaded documents (PDF/DOCX), generates detailed scoring reports, and maintains user assessment history through a PostgreSQL database.
 
-### Recent Updates (January 2026)
+### Recent Updates (March 2026)
+- **Informational Criteria in Area 3**: Competency Alignment and Sector/Theme Classification & SDG Mapping are now AI-generated narrative sections (not scored). Area 3 total points recalibrated from 10 to 6.
 - **Dual Document Upload**: Now requires both Case Study and Teaching Note documents before assessment can proceed
 - **Updated Assessment Criteria**: Expanded parameters across all 4 assessment areas based on the updated Case Review Matrix
 - **Area 3 TN Integration**: Alignment with Teaching Note evaluations now analyze both Case Study and Teaching Note documents together
@@ -40,7 +41,9 @@ Preferred communication style: Simple, everyday language.
 **Assessment Engine**:
 - Rubric-based evaluation system with 4 weighted assessment areas
 - Each area contains multiple criteria with specific scoring ranges (0-3 points typically)
-- Weighted score calculation: Area 1 (25%), Area 2 (20%), Area 3 (25%), Area 4 (30%)
+- Weighted score calculation: Area 1 (30%), Area 2 (30%), Area 3 (15%), Area 4 (25%)
+- Area 3 contains informational (non-scored) criteria marked with `"informational": True` flag
+- Informational criteria generate AI narrative analysis but do not contribute to scoring
 - AI-powered text analysis using structured prompts sent to OpenAI API
 
 **Document Processing Pipeline**:

@@ -18,7 +18,7 @@ ASSESSMENT_AREAS = {
     "area3": {
         "name": "Alignment with Teaching Note, Sector & Competencies",
         "description": "Checks whether the case and its teaching note complement each other and align with sectoral or competency goals.",
-        "total_points": 10,
+        "total_points": 6,
         "weight": 0.15
     },
     "area4": {
@@ -128,20 +128,18 @@ ASSESSMENT_CRITERIA = {
         },
         "competency_alignment": {
             "name": "Competency Alignment",
-            "description": "Are competencies from the Karmayogi Competency Model tagged and logically fit the case?",
-            "prompt": "Verify tagging of competencies from the Karmayogi Competency Model, ensuring they logically fit the case. Match listed competencies with inferred behavioral indicators.",
+            "description": "Identifies competencies from the Karmayogi Competency Model that are relevant to the case and evaluates how well they fit.",
+            "prompt": "Analyse the case study and teaching note to identify which competencies from the Karmayogi Competency Model (KCM) are relevant. Describe how the case narrative aligns with these competencies and whether the tagged competencies logically fit the case content. Provide a detailed narrative assessment.",
             "evaluation_approach": "Match listed competencies with inferred behavioral indicators.",
-            "max_score": 2,
-            "scoring_logic": "2 = Strong alignment; 1 = Weak alignment; 0 = Absent",
+            "informational": True,
             "requires_teaching_note": True
         },
         "sector_theme_sdg": {
-            "name": "Sector/Theme Classification (SDG Linkage)",
-            "description": "Is the case tagged to the correct sector or SDG theme?",
-            "prompt": "Confirm correct tagging of the broader policy or thematic area and SDG linkage.",
-            "evaluation_approach": "Semantic matching with pre-defined sector taxonomy.",
-            "max_score": 2,
-            "scoring_logic": "2 = Correct & comprehensive; 1 = Partially correct; 0 = Misclassified",
+            "name": "Sector/Theme Classification & SDG Mapping",
+            "description": "Identifies the relevant sector, thematic area, and Sustainable Development Goals (SDGs) linked to the case.",
+            "prompt": "Analyse the case study and teaching note to identify: (1) the primary sector and thematic area the case belongs to, (2) relevant Sustainable Development Goals (SDGs) that the case addresses, and (3) how well the case content maps to these classifications. Provide a detailed narrative with specific SDG numbers and names.",
+            "evaluation_approach": "Semantic matching with pre-defined sector taxonomy and SDG framework.",
+            "informational": True,
             "requires_teaching_note": True
         },
         "additional_readings_sec3": {
@@ -293,10 +291,12 @@ def calculate_weighted_score(assessment_results):
         total_points = area_info["total_points"]
         weight = area_info["weight"]
         
-        # Sum up scores for all criteria in this area
         area_score = 0
         if area_id in assessment_results:
             for criterion_id, result in assessment_results[area_id].items():
+                criteria_def = ASSESSMENT_CRITERIA.get(area_id, {}).get(criterion_id, {})
+                if criteria_def.get("informational", False):
+                    continue
                 score = result.get("score", 0)
                 area_score += score
         
