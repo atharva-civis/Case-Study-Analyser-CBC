@@ -942,6 +942,8 @@ with st.sidebar:
             st.markdown("---")
             st.info(f"Referencing {CASE_COUNT} case studies from the AGK repository")
 
+    elif st.session_state.logged_in:
+        st.info("Choose a tool from the home page to get started.")
     else:
         st.info("Please login to access the tools.")
 
