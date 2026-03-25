@@ -10,7 +10,7 @@ from io import BytesIO
 import PyPDF2
 import docx
 from datetime import datetime, timedelta
-from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database_pdf, run_caseconnect_analysis
+from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database, run_caseconnect_analysis
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS, KCM_COMPETENCIES
 from db_models import (
     initialize_session_state, 
@@ -31,10 +31,11 @@ st.set_page_config(
 )
 
 # Load case database for CaseConnect
-CASE_DB_PATH = "attached_assets/Amrit_Gyaan_Kosh___Case_Database_-_List_of_uploaded_cases_1774448401302.pdf"
+CASE_DB_PATH = "attached_assets/Amrit_Gyaan_Kosh___Case_Database_-_List_of_uploaded_cases_1774450085477.xlsx"
 @st.cache_data
 def get_case_database():
-    return load_case_database_pdf(CASE_DB_PATH)
+    cases, structured_text, case_count = load_case_database(CASE_DB_PATH)
+    return structured_text, case_count
 
 CASE_DATABASE_TEXT, CASE_COUNT = get_case_database()
 

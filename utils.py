@@ -1154,111 +1154,27 @@ def get_download_link(pdf_bytes, filename, text):
     return href
 
 
-def parse_case_database_pdf(pdf_path):
-    raw_text = ""
+def load_case_database(file_path):
+    import pandas as pd
+
     try:
-        pdf_reader = PyPDF2.PdfReader(pdf_path)
-        for page in pdf_reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                raw_text += page_text + "\n"
+        if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
+            df = pd.read_excel(file_path)
+        elif file_path.endswith('.csv'):
+            df = pd.read_csv(file_path)
+        else:
+            return [], "", 0
     except Exception as e:
         return [], "", 0
 
-    lines = raw_text.split("\n")
-    cleaned = []
-    for line in lines:
-        s = line.strip()
-        if s and s != "Case Study Title Case Study Description":
-            cleaned.append(s)
-
-    boundary_pattern = re.compile(
-        r'([a-z\d\)\.])('
-        r'The case[s ]|This case |The development |The establishment |'
-        r'The pond |The Madhya |The Rail |The .Nature |'
-        r'The COVID|The HRMS|The story |The .Natur|'
-        r'India.s |Madhya Pradesh |'
-        r'A quiet |A secret |A journey |'
-        r'DBT |Bandipur |Ziro Valley |'
-        r'In [a-zA-Z]|Mr\. |Dr\. |'
-        r'ASTR |Around the same time)'
-    )
-
-    def is_title_line(ln):
-        ln = ln.strip()
-        if not ln:
-            return False
-        if len(ln) > 100:
-            return False
-        if ln.endswith('.') or ln.endswith(','):
-            return False
-        if re.match(r'^(These |However|Additionally|Key |He |She |His |Her |With |The program|The scheme|The app|The case is)', ln):
-            return False
-        return True
-
     cases = []
-    pending_title_lines = []
-    current_title = ""
-    current_desc_lines = []
-
-    for line in cleaned:
-        boundary = boundary_pattern.search(line)
-
-        if boundary:
-            split_pos = boundary.start() + 1
-            title_part = line[:split_pos].strip()
-            desc_part = line[split_pos:].strip()
-
-            if current_title and current_desc_lines:
-                real_desc_lines = []
-                trailing_title_lines = []
-                for dl in current_desc_lines:
-                    if trailing_title_lines:
-                        if is_title_line(dl):
-                            trailing_title_lines.append(dl)
-                        else:
-                            real_desc_lines.extend(trailing_title_lines)
-                            trailing_title_lines = []
-                            real_desc_lines.append(dl)
-                    elif is_title_line(dl) and len(dl) < 60:
-                        trailing_title_lines.append(dl)
-                    else:
-                        real_desc_lines.append(dl)
-
-                full_desc = " ".join(real_desc_lines).strip()
-                if len(full_desc) > 30:
-                    cases.append({"title": current_title, "description": full_desc})
-
-                pending_title_lines = trailing_title_lines
-
-            if pending_title_lines:
-                new_title = " ".join(pending_title_lines + [title_part])
-            else:
-                new_title = title_part
-            current_title = new_title.strip()
-            current_desc_lines = [desc_part]
-            pending_title_lines = []
-
-        elif current_desc_lines:
-            current_desc_lines.append(line)
-        else:
-            pending_title_lines.append(line)
-
-    if current_title and current_desc_lines:
-        full_desc = " ".join(current_desc_lines).strip()
-        if len(full_desc) > 30:
-            cases.append({"title": current_title, "description": full_desc})
-
-    cleaned_cases = []
-    for case in cases:
-        t = re.sub(r'\s+', ' ', case["title"]).strip()
-        t = re.sub(r'^view\s*(less|more)\s*', '', t, flags=re.IGNORECASE).strip()
-        t = re.sub(r'[:\-\u2013\u2014\s]+$', '', t).strip()
-        case["title"] = t
-        case["description"] = re.sub(r'\s+', ' ', case["description"]).strip()
-        if len(t) > 5 and not t.endswith('.') and len(case["description"]) > 50:
-            cleaned_cases.append(case)
-    cases = cleaned_cases
+    for _, row in df.iterrows():
+        title = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+        desc = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
+        title = re.sub(r'\s+', ' ', title).strip()
+        desc = re.sub(r'\s+', ' ', desc).strip()
+        if title and desc:
+            cases.append({"title": title, "description": desc})
 
     case_count = len(cases)
     structured_text = ""
@@ -1266,11 +1182,6 @@ def parse_case_database_pdf(pdf_path):
         structured_text += f"Case {idx}: {case['title']}\nDescription: {case['description']}\n\n"
 
     return cases, structured_text, case_count
-
-
-def load_case_database_pdf(pdf_path):
-    cases, structured_text, case_count = parse_case_database_pdf(pdf_path)
-    return structured_text, case_count
 
 
 def run_caseconnect_analysis(questionnaire, curriculum_text, case_database_text, case_count):

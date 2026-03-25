@@ -6,7 +6,7 @@ The CBC-India AGK Case Study Suite is a Streamlit-based web application providin
 
 1. **Case Study Analyser**: Evaluates case studies against the CBC-India AGK Case Study Review Rubric across four weighted assessment areas (Structure/Chronology, Language/Citations, Alignment with Teaching Notes, Overall Effectiveness). Uses OpenAI's API to analyze uploaded documents (PDF/DOCX), generates detailed scoring reports with recommendations, and maintains assessment history through a PostgreSQL database.
 
-2. **CaseConnect**: An AI-enabled case discovery tool that recommends AGK repository case studies to faculty based on course outlines and a questionnaire about learners, objectives, competencies (KCM), duration, and sector. References the full AGK case database PDF for matching.
+2. **CaseConnect**: An AI-enabled case discovery tool that recommends AGK repository case studies to faculty based on course outlines and a questionnaire about learners, objectives, competencies (KCM), duration, and sector. References the AGK case database XLSX file (61 cases with structured title/description columns) for matching.
 
 ### App Structure
 - **Landing Page** (`active_tool = None`): Shows Assessment Framework overview + two tool cards with "Get Started" buttons
@@ -14,7 +14,7 @@ The CBC-India AGK Case Study Suite is a Streamlit-based web application providin
 - **CaseConnect** (`active_tool = "caseconnect"`): Sidebar with optional curriculum upload; main area shows 5-question form and AI-generated case recommendations
 
 ### Recent Updates (March 2026)
-- **CaseConnect Tool**: New AI case discovery feature — 5-question questionnaire (learners, objective, KCM competencies, duration, sector), optional curriculum upload, AGK case database matching, results with case recommendations, module suggestions, and teaching strategy
+- **CaseConnect Tool**: New AI case discovery feature — 5-question questionnaire (learners, objective, KCM competencies, duration, sector), optional curriculum upload, AGK case database matching, results with case recommendations, module suggestions, and teaching strategy. Case database switched from PDF (regex parsing) to XLSX (pandas/openpyxl structured read) for reliable title/description extraction.
 - **Suite Architecture**: App restructured from single-tool to multi-tool suite with landing page, active_tool routing, conditional sidebar
 - **Writing Assistant (Area 2)**: Full-document writing quality analysis using chunked processing — checks grammar, spelling (British English), tense consistency (past tense), redundancy, and sentence structure. Results shown as a findings table with severity badges in the Area 2 tab and in the PDF report. Processes the entire case study regardless of length.
 - **Sector Tags & Keywords**: Auto-generates sector classifications (from SECTOR_MAPPING reference), sub-themes, and public search keywords alongside summaries; displayed in UI as badges and in PDF below Executive Summary
