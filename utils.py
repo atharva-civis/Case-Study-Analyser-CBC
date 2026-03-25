@@ -16,6 +16,27 @@ import numpy as np
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
+def normalize_extracted_text(text):
+    import re
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'(\w) +- +(\w)', r'\1-\2', text)
+    text = re.sub(r'(\w) +-(\w)', r'\1-\2', text)
+    text = re.sub(r'(\w)- +(\w)', r'\1-\2', text)
+    text = re.sub(r' +([,.:;!?\)])', r'\1', text)
+    text = re.sub(r'(\() +', r'\1', text)
+    text = re.sub(r'" +', '"', text)
+    text = re.sub(r' +"', ' "', text)
+    text = re.sub(r'\u2019 +', '\u2019', text)
+    text = re.sub(r'\u201c +', '\u201c', text)
+    text = re.sub(r' +\u201d', '\u201d', text)
+    text = re.sub(r'(\w) (\w) (\w) (\w)', lambda m: m.group(0) if all(len(x) > 1 for x in [m.group(1), m.group(2), m.group(3), m.group(4)]) else m.group(0), text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    lines = text.split('\n')
+    cleaned_lines = [line.strip() for line in lines]
+    text = '\n'.join(cleaned_lines)
+    return text
+
+
 def extract_text_from_pdf(pdf_file):
     """
     Extract text content from a PDF file.
@@ -36,7 +57,7 @@ def extract_text_from_pdf(pdf_file):
     except Exception as e:
         raise Exception(f"Error extracting text from PDF: {str(e)}")
     
-    return text
+    return normalize_extracted_text(text)
 
 def extract_text_from_docx(docx_file):
     """
@@ -204,6 +225,7 @@ Rules:
 - severity: High = clear error (spelling, grammar), Medium = tense inconsistency or significant redundancy, Low = style improvement or minor redundancy
 - Do NOT flag proper nouns, place names, organisation names, or technical terms
 - Do NOT flag direct quotes from other sources
+- IMPORTANT: This text was extracted from a PDF. Do NOT flag any spacing-related issues such as extra spaces around hyphens, spaces before punctuation, or irregular whitespace — these are PDF extraction artifacts, NOT errors in the original document. Focus exclusively on genuine content-level spelling, grammar, tense, redundancy, and sentence structure issues.
 - Be conservative — when in doubt, do NOT flag it"""
 
         result = call_openai_api(prompt, response_format="json_object")
