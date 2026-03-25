@@ -879,8 +879,8 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                 pdf.cell(0, 6, " | ".join(summary_parts), 0, 1)
                 pdf.ln(5)
 
-                col_widths = [10, 22, 18, 50, 50, 40]
-                headers = ["#", "Type", "Severity", "Original Text", "Suggested Fix", "Explanation"]
+                col_widths = [12, 22, 50, 50, 18, 38]
+                headers = ["Issue #", "Type", "Original Text", "Suggested Fix", "Severity", "Explanation"]
 
                 pdf.set_fill_color(30, 58, 138)
                 pdf.set_text_color(255, 255, 255)
@@ -928,14 +928,10 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
 
                     pdf.cell(col_widths[0], row_height, str(idx), 1, 0, 'C', True)
                     pdf.cell(col_widths[1], row_height, f_type, 1, 0, 'C', True)
-                    pdf.cell(col_widths[2], row_height, sev, 1, 0, 'C', True)
-
-                    x_before = pdf.get_x()
-                    y_before = pdf.get_y()
-
-                    pdf.cell(col_widths[3], row_height, orig[:45], 1, 0, 'L', True)
-                    pdf.cell(col_widths[4], row_height, sugg[:45], 1, 0, 'L', True)
-                    pdf.cell(col_widths[5], row_height, expl[:35], 1, 1, 'L', True)
+                    pdf.cell(col_widths[2], row_height, orig[:45], 1, 0, 'L', True)
+                    pdf.cell(col_widths[3], row_height, sugg[:45], 1, 0, 'L', True)
+                    pdf.cell(col_widths[4], row_height, sev, 1, 0, 'C', True)
+                    pdf.cell(col_widths[5], row_height, expl[:30], 1, 1, 'L', True)
 
                 pdf.ln(5)
 

@@ -1315,11 +1315,11 @@ if st.session_state.case_study_text:
                             table_data = []
                             for i, f in enumerate(writing_findings, 1):
                                 table_data.append({
-                                    "#": i,
+                                    "Issue #": i,
                                     "Type": f.get("type", "Other"),
-                                    "Severity": f.get("severity", "Low"),
                                     "Original Text": f.get("original_text", ""),
                                     "Suggested Fix": f.get("suggestion", ""),
+                                    "Severity": f.get("severity", "Low"),
                                     "Explanation": f.get("context", "")
                                 })
 
