@@ -29,7 +29,6 @@ def normalize_extracted_text(text):
     text = re.sub(r'\u2019 +', '\u2019', text)
     text = re.sub(r'\u201c +', '\u201c', text)
     text = re.sub(r' +\u201d', '\u201d', text)
-    text = re.sub(r'(\w) (\w) (\w) (\w)', lambda m: m.group(0) if all(len(x) > 1 for x in [m.group(1), m.group(2), m.group(3), m.group(4)]) else m.group(0), text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     lines = text.split('\n')
     cleaned_lines = [line.strip() for line in lines]
