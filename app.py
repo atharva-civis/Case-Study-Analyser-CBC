@@ -11,7 +11,7 @@ import PyPDF2
 import docx
 from datetime import datetime, timedelta
 from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart
-from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label
+from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS
 from db_models import (
     initialize_session_state, 
     register_user, 
@@ -371,6 +371,12 @@ if 'weighted_scores' not in st.session_state:
     st.session_state.weighted_scores = None
 if 'competency_mapping' not in st.session_state:
     st.session_state.competency_mapping = None
+if 'sector_tags' not in st.session_state:
+    st.session_state.sector_tags = []
+if 'sector_subthemes' not in st.session_state:
+    st.session_state.sector_subthemes = {}
+if 'keywords' not in st.session_state:
+    st.session_state.keywords = []
 
 # Function to display logos side by side
 def display_logos():
@@ -457,6 +463,12 @@ with st.sidebar:
                         st.session_state.weighted_scores = None
                     if 'competency_mapping' in st.session_state:
                         st.session_state.competency_mapping = None
+                    if 'sector_tags' in st.session_state:
+                        st.session_state.sector_tags = []
+                    if 'sector_subthemes' in st.session_state:
+                        st.session_state.sector_subthemes = {}
+                    if 'keywords' in st.session_state:
+                        st.session_state.keywords = []
                 else:
                     st.session_state.loaded_from_history = False
             elif selected == "History":
@@ -530,9 +542,45 @@ with st.sidebar:
                         Focus on the main theme, key events, stakeholders involved, and outcomes:
                         
                         {st.session_state.case_study_text[:4000]}
+                        
+                        {PROMPT_EXCLUSION_INSTRUCTIONS}
                         """
                         
                         st.session_state.case_study_summary = call_openai_api(prompt)
+                    
+                    with st.spinner("Generating sector tags and keywords..."):
+                        sector_prompt = f"""
+                        You are an expert at classifying case studies by sector, sub-theme, and keywords.
+                        
+                        Based on the case study below, identify the applicable sectors, sub-themes, and keywords.
+                        
+                        === AVAILABLE SECTORS AND SUB-THEMES ===
+                        {json.dumps(SECTOR_MAPPING, indent=2)}
+                        
+                        === CASE STUDY ===
+                        {st.session_state.case_study_text[:5000]}
+                        
+                        {PROMPT_EXCLUSION_INSTRUCTIONS}
+                        
+                        Provide your analysis in the following JSON structure:
+                        {{
+                            "sectors": ["sector1", "sector2"],
+                            "subthemes": {{"sector1": ["subtheme1", "subtheme2"], "sector2": ["subtheme1"]}},
+                            "keywords": ["keyword1", "keyword2", "keyword3"]
+                        }}
+                        
+                        Important:
+                        - Select ONLY sectors from the provided SECTOR_MAPPING list
+                        - For each selected sector, identify relevant sub-themes from that sector's sub-theme list
+                        - Generate 5-10 keywords that a general public audience would use to search for this case study
+                        - Keywords should be simple, commonly used terms
+                        """
+                        
+                        tags_result = call_openai_api(sector_prompt, response_format="json_object")
+                        if isinstance(tags_result, dict):
+                            st.session_state.sector_tags = tags_result.get("sectors", [])
+                            st.session_state.sector_subthemes = tags_result.get("subthemes", {})
+                            st.session_state.keywords = tags_result.get("keywords", [])
                 
                 if st.button("Perform Full Assessment"):
                     progress_text = st.empty()
@@ -584,6 +632,8 @@ with st.sidebar:
                                     "document_reference": [specific sections or content from BOTH documents that supports this analysis as a single string]
                                 }}
                                 
+                                {PROMPT_EXCLUSION_INSTRUCTIONS}
+                                
                                 Important:
                                 - Do NOT include a score — this criterion is informational only
                                 - Provide a thorough, well-structured narrative
@@ -614,6 +664,8 @@ with st.sidebar:
                                     "document_reference": [specific sections or content from BOTH documents that supports this assessment as a single string]
                                 }}
                                 
+                                {PROMPT_EXCLUSION_INSTRUCTIONS}
+                                
                                 Important:
                                 - The score MUST be an integer between 0 and {max_score}
                                 - Follow the scoring logic exactly: {scoring_logic}
@@ -642,6 +694,8 @@ with st.sidebar:
                                     "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
                                     "document_reference": [specific sections or content from the document that supports this assessment as a single string]
                                 }}
+                                
+                                {PROMPT_EXCLUSION_INSTRUCTIONS}
                                 
                                 Important:
                                 - The score MUST be an integer between 0 and {max_score}
@@ -713,6 +767,8 @@ with st.sidebar:
                     === CASE STUDY ===
                     {st.session_state.case_study_text[:5000]}
                     
+                    {PROMPT_EXCLUSION_INSTRUCTIONS}
+                    
                     Provide your analysis in the following JSON structure:
                     {{
                         "behavioral_competencies": [
@@ -743,6 +799,41 @@ with st.sidebar:
                     
                     processed_criteria += 1
                     progress_bar.progress(processed_criteria / total_criteria)
+                    
+                    progress_text.text("Generating sector tags and keywords...")
+                    with st.spinner("Generating sector tags and keywords..."):
+                        sector_prompt = f"""
+                        You are an expert at classifying case studies by sector, sub-theme, and keywords.
+                        
+                        Based on the case study below, identify the applicable sectors, sub-themes, and keywords.
+                        
+                        === AVAILABLE SECTORS AND SUB-THEMES ===
+                        {json.dumps(SECTOR_MAPPING, indent=2)}
+                        
+                        === CASE STUDY ===
+                        {st.session_state.case_study_text[:5000]}
+                        
+                        {PROMPT_EXCLUSION_INSTRUCTIONS}
+                        
+                        Provide your analysis in the following JSON structure:
+                        {{
+                            "sectors": ["sector1", "sector2"],
+                            "subthemes": {{"sector1": ["subtheme1", "subtheme2"], "sector2": ["subtheme1"]}},
+                            "keywords": ["keyword1", "keyword2", "keyword3"]
+                        }}
+                        
+                        Important:
+                        - Select ONLY sectors from the provided SECTOR_MAPPING list
+                        - For each selected sector, identify relevant sub-themes from that sector's sub-theme list
+                        - Generate 5-10 keywords that a general public audience would use to search for this case study
+                        - Keywords should be simple, commonly used terms
+                        """
+                        
+                        tags_result = call_openai_api(sector_prompt, response_format="json_object")
+                        if isinstance(tags_result, dict):
+                            st.session_state.sector_tags = tags_result.get("sectors", [])
+                            st.session_state.sector_subthemes = tags_result.get("subthemes", {})
+                            st.session_state.keywords = tags_result.get("keywords", [])
                     
                     # Calculate weighted scores after assessment
                     st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)
@@ -791,6 +882,11 @@ with st.sidebar:
                                         st.session_state.recommendations = assessment.recommendations
                                         st.session_state.case_study_text = "Loaded from history"  # Placeholder for text
                                         
+                                        results_dict = st.session_state.assessment_results
+                                        st.session_state.sector_tags = results_dict.get('_sector_tags', [])
+                                        st.session_state.sector_subthemes = results_dict.get('_sector_subthemes', {})
+                                        st.session_state.keywords = results_dict.get('_keywords', [])
+                                        
                                         # Recalculate weighted scores
                                         st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)
                                         
@@ -830,6 +926,36 @@ if st.session_state.case_study_text:
         st.write(st.session_state.case_study_summary)
     else:
         st.info("Click 'Generate Summary' to create a summary of the case study document")
+    
+    if st.session_state.get('sector_tags'):
+        st.header("Sector Tags & Keywords")
+        
+        sector_badges = " ".join([
+            f'<span style="display: inline-block; padding: 5px 14px; margin: 4px; background-color: #DBEAFE; color: #1E40AF; border-radius: 20px; font-weight: 600; font-size: 0.9em;">{tag}</span>'
+            for tag in st.session_state.sector_tags
+        ])
+        st.markdown(f"**Sector Tags:** {sector_badges}", unsafe_allow_html=True)
+        
+        subthemes = st.session_state.get('sector_subthemes', {})
+        if subthemes:
+            st.markdown("**Sub-themes:**")
+            for sector, themes in subthemes.items():
+                if themes:
+                    theme_badges = " ".join([
+                        f'<span style="display: inline-block; padding: 3px 10px; margin: 3px; background-color: #E0F2FE; color: #0369A1; border-radius: 15px; font-size: 0.85em;">{t}</span>'
+                        for t in themes
+                    ])
+                    st.markdown(f"&nbsp;&nbsp;*{sector}:* {theme_badges}", unsafe_allow_html=True)
+        
+        keywords = st.session_state.get('keywords', [])
+        if keywords:
+            keyword_badges = " ".join([
+                f'<span style="display: inline-block; padding: 4px 12px; margin: 3px; background-color: #F3F4F6; color: #374151; border-radius: 15px; font-size: 0.85em;">{kw}</span>'
+                for kw in keywords
+            ])
+            st.markdown(f"**Keywords:** {keyword_badges}", unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
     
     # Assessment Results
     if st.session_state.assessment_results:
@@ -942,6 +1068,8 @@ if st.session_state.case_study_text:
                         "Recommendation 2:", etc. Each recommendation should be a complete, self-contained 
                         paragraph without line breaks or bullets in the middle of sentences.
                         
+                        {PROMPT_EXCLUSION_INSTRUCTIONS}
+                        
                         Your recommendations should be:
                         1. Specific and actionable for case study improvement
                         2. Practical to implement
@@ -964,11 +1092,15 @@ if st.session_state.case_study_text:
                     if st.session_state.user_id:
                         # Save assessment to database
                         try:
+                            results_to_save = dict(st.session_state.assessment_results)
+                            results_to_save['_sector_tags'] = st.session_state.get('sector_tags', [])
+                            results_to_save['_sector_subthemes'] = st.session_state.get('sector_subthemes', {})
+                            results_to_save['_keywords'] = st.session_state.get('keywords', [])
                             assessment_id = save_assessment(
                                 user_id=st.session_state.user_id,
                                 document_name=st.session_state.document_name,
                                 policy_summary=st.session_state.case_study_summary,
-                                assessment_results=st.session_state.assessment_results,
+                                assessment_results=results_to_save,
                                 recommendations=st.session_state.get('recommendations', "No recommendations available.")
                             )
                             
@@ -996,7 +1128,8 @@ if st.session_state.case_study_text:
                     ASSESSMENT_CRITERIA,
                     st.session_state.get('recommendations', "No recommendations available."),
                     st.session_state.weighted_scores,
-                    st.session_state.get('competency_mapping', None)
+                    st.session_state.get('competency_mapping', None),
+                    tags_data={"sectors": st.session_state.get('sector_tags', []), "subthemes": st.session_state.get('sector_subthemes', {}), "keywords": st.session_state.get('keywords', [])}
                 ),
                 file_name="case_study_assessment.pdf",
                 mime="application/pdf",

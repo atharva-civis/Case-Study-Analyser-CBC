@@ -257,7 +257,7 @@ def sanitize_text_for_pdf(text):
     
     return text
 
-def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None, competency_mapping=None):
+def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None, competency_mapping=None, tags_data=None):
     """
     Generate a PDF report of the case study assessment
     
@@ -393,6 +393,46 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
     pdf.set_font('Arial', '', 11)
     pdf.multi_cell(0, 6, document_summary)
     pdf.ln(5)
+    
+    if tags_data and isinstance(tags_data, dict):
+        sectors = tags_data.get("sectors", [])
+        subthemes = tags_data.get("subthemes", {})
+        keywords = tags_data.get("keywords", [])
+        
+        if sectors or keywords:
+            pdf.section_title("Sector Classification & Keywords")
+            
+            if sectors:
+                pdf.sub_section_title("Applicable Sectors:")
+                for sector in sectors:
+                    sector_name = sanitize_text_for_pdf(str(sector))
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.cell(0, 8, f"  {sector_name}", 0, 1, 'L', True)
+                    pdf.set_text_color(0, 0, 0)
+                    
+                    sector_subthemes = subthemes.get(sector, [])
+                    if sector_subthemes:
+                        pdf.set_font('Arial', '', 9)
+                        for sub in sector_subthemes:
+                            sub_name = sanitize_text_for_pdf(str(sub))
+                            pdf.set_fill_color(240, 240, 250)
+                            pdf.cell(10, 6, "", 0, 0)
+                            pdf.cell(0, 6, f"- {sub_name}", 0, 1, 'L', True)
+                    
+                    pdf.ln(2)
+                pdf.ln(3)
+            
+            if keywords:
+                pdf.sub_section_title("Keywords:")
+                pdf.set_font('Arial', '', 10)
+                sanitized_keywords = [sanitize_text_for_pdf(str(k)) for k in keywords]
+                keywords_text = ", ".join(sanitized_keywords)
+                pdf.multi_cell(0, 6, keywords_text)
+                pdf.ln(3)
+            
+            pdf.ln(5)
     
     # KCM Competency Mapping section
     if competency_mapping and isinstance(competency_mapping, dict):

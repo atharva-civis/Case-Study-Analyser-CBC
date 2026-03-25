@@ -271,6 +271,57 @@ KCM_COMPETENCIES = {
     }
 }
 
+SECTOR_MAPPING = {
+    "Agriculture": ["Horticulture", "Fertilizers", "Pest Control"],
+    "Animal Husbandry and Fisheries": ["Fisheries", "Animal Husbandry", "Dairy"],
+    "Commerce and Industries": ["MSME", "Manufacturing", "Marketing", "Business", "Commerce", "Entrepreneurship", "Startups", "Heavy Industry", "Steel", "Enterprises"],
+    "Culture": ["Culture & Heritage"],
+    "Defence": [],
+    "Education": [],
+    "Energy": ["Coal", "Natural Gas", "Non-Renewable Sources of Energy", "Petroleum", "Solar Energy", "Wind Energy"],
+    "Engineering": ["Civil", "Electrical", "Mechanical"],
+    "Environment": ["Forestry", "Waste Management", "Wildlife"],
+    "External Affairs": ["Bilateral and Multilateral Relations", "Trade Negotiations", "Diplomatic Missions"],
+    "Finance": ["Banking", "Budgeting", "Taxation", "Accounts", "Economics"],
+    "Food Processing": [],
+    "General Administration": ["Training", "Personnel Management", "Staff Officer", "Occupational Safety", "Revenue"],
+    "Geology and Mining": [],
+    "Governance": ["Public Administration", "Planning", "Scheme Delivery", "Grievance Redressal"],
+    "Health and Nutrition": ["Drugs", "Public Health", "Nutrition"],
+    "Home Affairs": ["Crime Control", "Enforcement, Vigilance", "Internal Security", "Intelligence Agency", "Law and Order", "Narcotics", "National Security", "Disaster Management", "Trafficking", "Paramilitary", "Civil Defence", "Cyber Control"],
+    "Housing": [],
+    "Information and Broadcasting": [],
+    "Information Technology": ["e-Governance", "Cyber Security", "Artificial Intelligence", "Data", "Technology"],
+    "Infrastructure": ["Ports", "Roads", "Shipping", "Aviation", "Transportation"],
+    "Labour and Employment": [],
+    "Land Resources": ["Sustainability"],
+    "Law": [],
+    "Marketing": [],
+    "Postal Services": [],
+    "Procurement": [],
+    "Public Distribution System": [],
+    "Public Policy": [],
+    "Railways": [],
+    "Rural Development/Panchayati Raj": ["Rural Management"],
+    "Science & Technology": [],
+    "Skill Development": ["Capacity Building", "Leadership", "Youth & Sports Affairs", "Citizen Centricity"],
+    "Sports": [],
+    "Space": [],
+    "Telecommunications": ["Telecom Equipment", "Telecom Services", "Wireless Communication", "Satellite Communication", "Broadband Services", "Over-the-top Services"],
+    "Textiles": [],
+    "Tourism": [],
+    "Urban Development": ["Smart City", "Urbanization"],
+    "Water and Sanitation": [],
+    "Welfare": ["Women and Child Development", "Poverty Alleviation", "Women Empowerment", "Social Justice", "Tribal Welfare", "Minority Affairs"],
+}
+
+PROMPT_EXCLUSION_INSTRUCTIONS = """
+IMPORTANT EXCLUSION RULES — You MUST follow these when analysing the case study:
+1. IGNORE the "Note from the Author" section entirely (author introductions, acknowledgements, author bios). Do NOT evaluate or consider this section in your analysis.
+2. IGNORE the cover page content including any Creative Commons license references (e.g. http://creativecommons.org/licenses/by-nc-sa/4.0/), associated citation markers like [1], and any formatting issues related to these. Do NOT penalise or comment on these.
+3. Begin your evaluation from the actual case study narrative content, skipping any prefatory/cover page material.
+"""
+
 def calculate_weighted_score(assessment_results):
     """
     Calculate the weighted composite score based on assessment results.
