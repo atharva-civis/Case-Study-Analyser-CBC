@@ -262,10 +262,22 @@ Rules:
             seen_texts.add(orig)
             deduplicated.append(finding)
 
-    type_order = {"High": 0, "Medium": 1, "Low": 2}
-    deduplicated.sort(key=lambda f: type_order.get(f.get("severity", "Low"), 2))
+    filtered = []
+    for finding in deduplicated:
+        orig = finding.get("original_text", "").strip()
+        suggestion = finding.get("suggestion", "").strip()
+        if orig.replace(" ", "").replace("\u00a0", "").lower() == suggestion.replace(" ", "").replace("\u00a0", "").lower() and orig != suggestion:
+            continue
+        orig_no_hyphspace = orig.replace(" -", "-").replace("- ", "-").replace(" ", "")
+        sugg_no_hyphspace = suggestion.replace(" -", "-").replace("- ", "-").replace(" ", "")
+        if orig_no_hyphspace.lower() == sugg_no_hyphspace.lower() and orig != suggestion:
+            continue
+        filtered.append(finding)
 
-    return deduplicated
+    type_order = {"High": 0, "Medium": 1, "Low": 2}
+    filtered.sort(key=lambda f: type_order.get(f.get("severity", "Low"), 2))
+
+    return filtered
 
 
 def create_gauge_chart(score, title, max_value=100):
