@@ -266,3 +266,5 @@ def logout_user():
         st.session_state.document_name = ""
     if 'recommendations' in st.session_state:
         st.session_state.recommendations = ""
+    if 'writing_findings' in st.session_state:
+        st.session_state.writing_findings = []

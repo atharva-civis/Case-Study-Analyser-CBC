@@ -10,7 +10,7 @@ from io import BytesIO
 import PyPDF2
 import docx
 from datetime import datetime, timedelta
-from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart
+from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS
 from db_models import (
     initialize_session_state, 
@@ -587,6 +587,7 @@ with st.sidebar:
                     progress_bar = st.progress(0)
                     
                     st.session_state.assessment_results = {}
+                    st.session_state.writing_findings = []
                     
                     # Count total criteria for progress tracking (add 1 for competency mapping)
                     total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS) + 1
@@ -734,6 +735,14 @@ with st.sidebar:
                             processed_criteria += 1
                             progress_bar.progress(processed_criteria / total_criteria)
                     
+                    progress_text.text("Running Writing Quality Analysis...")
+                    with st.spinner("Analysing full document for writing issues..."):
+                        writing_findings = analyze_writing_quality_chunked(
+                            st.session_state.case_study_text,
+                            exclusion_instructions=PROMPT_EXCLUSION_INSTRUCTIONS
+                        )
+                        st.session_state.writing_findings = writing_findings
+
                     # Generate KCM Competency Mapping
                     progress_text.text("Mapping Karmayogi Competencies...")
                     from assessment_criteria import KCM_COMPETENCIES
@@ -1129,7 +1138,8 @@ if st.session_state.case_study_text:
                     st.session_state.get('recommendations', "No recommendations available."),
                     st.session_state.weighted_scores,
                     st.session_state.get('competency_mapping', None),
-                    tags_data={"sectors": st.session_state.get('sector_tags', []), "subthemes": st.session_state.get('sector_subthemes', {}), "keywords": st.session_state.get('keywords', [])}
+                    tags_data={"sectors": st.session_state.get('sector_tags', []), "subthemes": st.session_state.get('sector_subthemes', {}), "keywords": st.session_state.get('keywords', [])},
+                    writing_findings=st.session_state.get('writing_findings', [])
                 ),
                 file_name="case_study_assessment.pdf",
                 mime="application/pdf",
@@ -1268,7 +1278,78 @@ if st.session_state.case_study_text:
                                 st.write(f"**Reasoning & Evidence:** {reasoning}")
                                 st.write(f"**Document Reference:** {doc_ref}")
                                 st.markdown("---")
-                    
+
+                    if area_id == "area2":
+                        writing_findings = st.session_state.get('writing_findings', [])
+                        if writing_findings:
+                            st.subheader("Writing Assistant Findings")
+                            st.write("Detailed analysis of grammar, spelling, tense consistency, redundancy, and sentence structure across the complete case study.")
+
+                            type_counts = {}
+                            severity_counts = {"High": 0, "Medium": 0, "Low": 0}
+                            for f in writing_findings:
+                                t = f.get("type", "Other")
+                                s = f.get("severity", "Low")
+                                type_counts[t] = type_counts.get(t, 0) + 1
+                                severity_counts[s] = severity_counts.get(s, 0) + 1
+
+                            summary_cols = st.columns(len(type_counts) + 1)
+                            with summary_cols[0]:
+                                st.metric("Total Issues", len(writing_findings))
+                            for idx, (issue_type, count) in enumerate(type_counts.items()):
+                                with summary_cols[idx + 1]:
+                                    st.metric(issue_type, count)
+
+                            sev_cols = st.columns(3)
+                            sev_colors = {"High": "#dc3545", "Medium": "#ffc107", "Low": "#6c757d"}
+                            for idx, (sev, count) in enumerate(severity_counts.items()):
+                                with sev_cols[idx]:
+                                    st.markdown(f"""
+                                    <div style="text-align:center; padding:8px; background-color:{sev_colors[sev]}20; border-radius:8px; border:1px solid {sev_colors[sev]};">
+                                        <span style="color:{sev_colors[sev]}; font-weight:bold;">{sev}: {count}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            st.markdown("<br>", unsafe_allow_html=True)
+
+                            table_data = []
+                            for i, f in enumerate(writing_findings, 1):
+                                table_data.append({
+                                    "#": i,
+                                    "Type": f.get("type", "Other"),
+                                    "Severity": f.get("severity", "Low"),
+                                    "Original Text": f.get("original_text", ""),
+                                    "Suggested Fix": f.get("suggestion", ""),
+                                    "Explanation": f.get("context", "")
+                                })
+
+                            findings_df = pd.DataFrame(table_data)
+
+                            def style_severity(val):
+                                colors = {"High": "background-color: #f8d7da; color: #721c24;", "Medium": "background-color: #fff3cd; color: #856404;", "Low": "background-color: #e2e3e5; color: #383d41;"}
+                                return colors.get(val, "")
+
+                            styled_df = findings_df.style.applymap(style_severity, subset=["Severity"])
+                            st.dataframe(styled_df, use_container_width=True, hide_index=True, height=min(400, 50 + len(table_data) * 35))
+
+                            with st.expander("View All Findings in Detail", expanded=False):
+                                for i, f in enumerate(writing_findings, 1):
+                                    sev = f.get("severity", "Low")
+                                    sev_color = sev_colors.get(sev, "#6c757d")
+                                    type_badge_colors = {"Spelling": "#0d6efd", "Grammar": "#6610f2", "Tense": "#fd7e14", "Redundancy": "#20c997", "Structure": "#0dcaf0"}
+                                    type_color = type_badge_colors.get(f.get("type", ""), "#6c757d")
+                                    st.markdown(f"""
+                                    <div style="padding:12px; margin-bottom:8px; background-color:#f8f9fa; border-radius:8px; border-left:4px solid {sev_color};">
+                                        <div style="margin-bottom:6px;">
+                                            <span style="display:inline-block; padding:2px 10px; background-color:{type_color}; color:white; border-radius:12px; font-size:0.8em; font-weight:bold;">{f.get("type", "Other")}</span>
+                                            <span style="display:inline-block; padding:2px 10px; background-color:{sev_color}20; color:{sev_color}; border-radius:12px; font-size:0.8em; font-weight:bold; margin-left:5px;">{sev}</span>
+                                        </div>
+                                        <p style="margin:4px 0;"><strong>Original:</strong> <span style="color:#dc3545; text-decoration:line-through;">{f.get("original_text", "")}</span></p>
+                                        <p style="margin:4px 0;"><strong>Suggested:</strong> <span style="color:#28a745;">{f.get("suggestion", "")}</span></p>
+                                        <p style="margin:4px 0; font-size:0.9em; color:#6B7280;"><em>{f.get("context", "")}</em></p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
                     # Display KCM Competency Mapping before recommendations
                     competency_data = st.session_state.get('competency_mapping')
                     if competency_data and isinstance(competency_data, dict):

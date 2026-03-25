@@ -143,7 +143,92 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
     
     except Exception as e:
         return f"Error calling OpenAI API: {str(e)}"
-        
+
+
+def analyze_writing_quality_chunked(full_text, exclusion_instructions="", chunk_size=3000, overlap=500):
+    all_findings = []
+    text_length = len(full_text)
+
+    if text_length == 0:
+        return []
+
+    chunks = []
+    start = 0
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+        chunks.append((start, full_text[start:end]))
+        if end >= text_length:
+            break
+        start += chunk_size - overlap
+
+    for chunk_idx, (char_offset, chunk_text) in enumerate(chunks):
+        prompt = f"""You are an expert English language editor and proofreader specialising in academic and government case studies written in British English.
+
+Analyse the following text chunk (chunk {chunk_idx + 1} of {len(chunks)}) for writing issues. Be HIGHLY ACCURATE — only flag genuine errors, not stylistic preferences. Do NOT flag proper nouns, acronyms, abbreviations, or domain-specific terminology.
+
+CHECK FOR THESE SPECIFIC ISSUE TYPES:
+
+1. **Spelling** — Identify words that are misspelt. Flag American English spellings that should be British English (e.g., "organization" → "organisation", "center" → "centre", "analyze" → "analyse", "color" → "colour", "program" → "programme", "defense" → "defence", "favor" → "favour", "realize" → "realise").
+
+2. **Grammar** — Check subject–verb agreement errors, incorrect article usage, missing or extra prepositions, incorrect pronoun references, and misused words.
+
+3. **Tense Consistency** — Case studies should primarily use past tense. Flag any inconsistent shifts to present tense within narrative sections (but allow present tense in general statements, conclusions, or when describing ongoing situations).
+
+4. **Redundancy** — Flag redundant phrases like "in order to" (use "to"), "due to the fact that" (use "because"), "at this point in time" (use "now"), "each and every" (use "each" or "every"), "free gift" (use "gift"), repeated ideas in adjacent sentences.
+
+5. **Sentence Structure** — Flag overly complex sentences (more than 40 words with multiple clauses), sentences in passive voice that would be clearer in active voice, run-on sentences, and suggest simpler alternatives.
+
+{exclusion_instructions}
+
+=== TEXT TO ANALYSE ===
+{chunk_text}
+
+Return your findings as a JSON object with this EXACT structure:
+{{
+    "findings": [
+        {{
+            "type": "Spelling|Grammar|Tense|Redundancy|Structure",
+            "original_text": "the exact problematic text from the document (keep short, max 15 words)",
+            "suggestion": "the corrected or improved version",
+            "severity": "High|Medium|Low",
+            "context": "brief explanation of the issue (one sentence)"
+        }}
+    ]
+}}
+
+Rules:
+- Return ONLY genuine issues — do NOT fabricate or invent findings
+- If there are no issues in this chunk, return {{"findings": []}}
+- Keep original_text short (the specific problematic phrase only, max 15 words)
+- severity: High = clear error (spelling, grammar), Medium = tense inconsistency or significant redundancy, Low = style improvement or minor redundancy
+- Do NOT flag proper nouns, place names, organisation names, or technical terms
+- Do NOT flag direct quotes from other sources
+- Be conservative — when in doubt, do NOT flag it"""
+
+        result = call_openai_api(prompt, response_format="json_object")
+
+        if isinstance(result, dict):
+            chunk_findings = result.get("findings", [])
+            if isinstance(chunk_findings, list):
+                for finding in chunk_findings:
+                    if isinstance(finding, dict) and finding.get("original_text"):
+                        finding["chunk"] = chunk_idx + 1
+                        all_findings.append(finding)
+
+    seen_texts = set()
+    deduplicated = []
+    for finding in all_findings:
+        orig = finding.get("original_text", "").strip().lower()
+        if orig and orig not in seen_texts:
+            seen_texts.add(orig)
+            deduplicated.append(finding)
+
+    type_order = {"High": 0, "Medium": 1, "Low": 2}
+    deduplicated.sort(key=lambda f: type_order.get(f.get("severity", "Low"), 2))
+
+    return deduplicated
+
+
 def create_gauge_chart(score, title, max_value=100):
     """
     Creates a gauge chart for a score
@@ -257,7 +342,7 @@ def sanitize_text_for_pdf(text):
     
     return text
 
-def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None, competency_mapping=None, tags_data=None):
+def generate_report_pdf(filename, document_name, document_summary, assessment_results, assessment_areas, assessment_criteria, recommendations="", weighted_scores=None, competency_mapping=None, tags_data=None, writing_findings=None):
     """
     Generate a PDF report of the case study assessment
     
@@ -765,6 +850,95 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                     pdf.multi_cell(0, 6, doc_ref)
 
                     pdf.ln(5)
+
+            if area_id == "area2" and writing_findings and isinstance(writing_findings, list) and len(writing_findings) > 0:
+                pdf.add_page()
+                pdf.section_title("Writing Assistant Findings")
+                pdf.set_font('Arial', '', 10)
+                pdf.multi_cell(0, 5, "Detailed analysis of grammar, spelling, tense consistency, redundancy, and sentence structure across the complete case study.")
+                pdf.ln(3)
+
+                type_counts = {}
+                severity_counts = {"High": 0, "Medium": 0, "Low": 0}
+                for finding in writing_findings:
+                    t = finding.get("type", "Other")
+                    s = finding.get("severity", "Low")
+                    type_counts[t] = type_counts.get(t, 0) + 1
+                    if s in severity_counts:
+                        severity_counts[s] += 1
+
+                pdf.set_font('Arial', 'B', 10)
+                pdf.cell(0, 8, f"Summary: {len(writing_findings)} issues found", 0, 1)
+                pdf.set_font('Arial', '', 9)
+                summary_parts = []
+                for issue_type, count in type_counts.items():
+                    summary_parts.append(f"{issue_type}: {count}")
+                for sev, count in severity_counts.items():
+                    if count > 0:
+                        summary_parts.append(f"{sev} severity: {count}")
+                pdf.cell(0, 6, " | ".join(summary_parts), 0, 1)
+                pdf.ln(5)
+
+                col_widths = [10, 22, 18, 50, 50, 40]
+                headers = ["#", "Type", "Severity", "Original Text", "Suggested Fix", "Explanation"]
+
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('Arial', 'B', 7)
+                for j, header in enumerate(headers):
+                    pdf.cell(col_widths[j], 7, header, 1, 0, 'C', True)
+                pdf.ln()
+                pdf.set_text_color(0, 0, 0)
+
+                pdf.set_font('Arial', '', 7)
+                for idx, finding in enumerate(writing_findings, 1):
+                    sev = finding.get("severity", "Low")
+                    if sev == "High":
+                        pdf.set_fill_color(248, 215, 218)
+                    elif sev == "Medium":
+                        pdf.set_fill_color(255, 243, 205)
+                    else:
+                        pdf.set_fill_color(245, 245, 245)
+
+                    orig = sanitize_text_for_pdf(str(finding.get("original_text", ""))[:80])
+                    sugg = sanitize_text_for_pdf(str(finding.get("suggestion", ""))[:80])
+                    expl = sanitize_text_for_pdf(str(finding.get("context", ""))[:60])
+                    f_type = sanitize_text_for_pdf(str(finding.get("type", "Other")))
+
+                    row_height = max(7, max(len(orig), len(sugg)) // 8 * 4 + 7)
+                    row_height = min(row_height, 20)
+
+                    if pdf.get_y() + row_height > pdf.page_break_trigger:
+                        pdf.add_page()
+                        pdf.set_fill_color(30, 58, 138)
+                        pdf.set_text_color(255, 255, 255)
+                        pdf.set_font('Arial', 'B', 7)
+                        for j, header in enumerate(headers):
+                            pdf.cell(col_widths[j], 7, header, 1, 0, 'C', True)
+                        pdf.ln()
+                        pdf.set_text_color(0, 0, 0)
+                        pdf.set_font('Arial', '', 7)
+
+                        if sev == "High":
+                            pdf.set_fill_color(248, 215, 218)
+                        elif sev == "Medium":
+                            pdf.set_fill_color(255, 243, 205)
+                        else:
+                            pdf.set_fill_color(245, 245, 245)
+
+                    pdf.cell(col_widths[0], row_height, str(idx), 1, 0, 'C', True)
+                    pdf.cell(col_widths[1], row_height, f_type, 1, 0, 'C', True)
+                    pdf.cell(col_widths[2], row_height, sev, 1, 0, 'C', True)
+
+                    x_before = pdf.get_x()
+                    y_before = pdf.get_y()
+
+                    pdf.cell(col_widths[3], row_height, orig[:45], 1, 0, 'L', True)
+                    pdf.cell(col_widths[4], row_height, sugg[:45], 1, 0, 'L', True)
+                    pdf.cell(col_widths[5], row_height, expl[:35], 1, 1, 'L', True)
+
+                pdf.ln(5)
+
         else:
             pdf.set_font('Arial', 'I', 10)
             pdf.cell(0, 10, "No assessment data available for this area", 0, 1)
