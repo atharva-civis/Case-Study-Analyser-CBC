@@ -72,7 +72,7 @@ def extract_text_from_docx(docx_file):
     
     return text
 
-def call_openai_api(prompt, model="gpt-4o", response_format=None):
+def call_openai_api(prompt, model="gpt-4o", response_format=None, temperature=0.5):
     """
     Call the OpenAI API with the given prompt.
     
@@ -80,6 +80,7 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
         prompt (str): The prompt to send to the API
         model (str): The OpenAI model to use
         response_format (str, optional): Format for response (e.g., "json_object")
+        temperature (float): Temperature for response generation (default 0.5)
         
     Returns:
         The content of the API response
@@ -87,16 +88,14 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
     try:
         messages = [{"role": "user", "content": prompt}]
         
-        # Set up response_format if specified
         kwargs = {}
         if response_format == "json_object":
             kwargs["response_format"] = {"type": "json_object"}
         
-        # Make the API call
         response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=0.5,
+            temperature=temperature,
             max_tokens=2000,
             **kwargs
         )
@@ -145,10 +144,10 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None):
         return f"Error calling OpenAI API: {str(e)}"
 
 
-def analyze_writing_quality_chunked(full_text, exclusion_instructions="", chunk_size=3000, overlap=500):
-    all_findings = []
-    text_length = len(full_text)
+def analyze_writing_quality_chunked(full_text, exclusion_instructions="", chunk_size=3000, overlap=500, max_workers=5):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    text_length = len(full_text)
     if text_length == 0:
         return []
 
@@ -161,16 +160,18 @@ def analyze_writing_quality_chunked(full_text, exclusion_instructions="", chunk_
             break
         start += chunk_size - overlap
 
-    for chunk_idx, (char_offset, chunk_text) in enumerate(chunks):
+    total_chunks = len(chunks)
+
+    def process_chunk(chunk_idx, chunk_text):
         prompt = f"""You are an expert English language editor and proofreader specialising in academic and government case studies written in British English.
 
-Analyse the following text chunk (chunk {chunk_idx + 1} of {len(chunks)}) for writing issues. Be HIGHLY ACCURATE — only flag genuine errors, not stylistic preferences. Do NOT flag proper nouns, acronyms, abbreviations, or domain-specific terminology.
+Analyse the following text chunk (chunk {chunk_idx + 1} of {total_chunks}) for writing issues. Be HIGHLY ACCURATE — only flag genuine errors, not stylistic preferences. Do NOT flag proper nouns, acronyms, abbreviations, or domain-specific terminology.
 
 CHECK FOR THESE SPECIFIC ISSUE TYPES:
 
 1. **Spelling** — Identify words that are misspelt. Flag American English spellings that should be British English (e.g., "organization" → "organisation", "center" → "centre", "analyze" → "analyse", "color" → "colour", "program" → "programme", "defense" → "defence", "favor" → "favour", "realize" → "realise").
 
-2. **Grammar** — Check subject–verb agreement errors, incorrect article usage, missing or extra prepositions, incorrect pronoun references, and misused words.
+2. **Grammar** — Check subject-verb agreement errors, incorrect article usage, missing or extra prepositions, incorrect pronoun references, and misused words.
 
 3. **Tense Consistency** — Case studies should primarily use past tense. Flag any inconsistent shifts to present tense within narrative sections (but allow present tense in general statements, conclusions, or when describing ongoing situations).
 
@@ -206,14 +207,31 @@ Rules:
 - Be conservative — when in doubt, do NOT flag it"""
 
         result = call_openai_api(prompt, response_format="json_object")
-
+        findings = []
         if isinstance(result, dict):
             chunk_findings = result.get("findings", [])
             if isinstance(chunk_findings, list):
                 for finding in chunk_findings:
                     if isinstance(finding, dict) and finding.get("original_text"):
                         finding["chunk"] = chunk_idx + 1
-                        all_findings.append(finding)
+                        findings.append(finding)
+        return chunk_idx, findings
+
+    all_findings = []
+    with ThreadPoolExecutor(max_workers=min(max_workers, total_chunks)) as executor:
+        futures = {
+            executor.submit(process_chunk, idx, chunk_text): idx
+            for idx, (char_offset, chunk_text) in enumerate(chunks)
+        }
+        for future in as_completed(futures):
+            try:
+                chunk_idx, findings = future.result()
+                all_findings.extend(findings)
+            except Exception as e:
+                import logging
+                logging.warning(f"Writing analysis chunk failed: {str(e)}")
+
+    all_findings.sort(key=lambda f: f.get("chunk", 0))
 
     seen_texts = set()
     deduplicated = []
@@ -879,20 +897,67 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                 pdf.cell(0, 6, " | ".join(summary_parts), 0, 1)
                 pdf.ln(5)
 
-                col_widths = [12, 22, 50, 50, 18, 38]
+                col_widths = [12, 20, 48, 48, 16, 46]
                 headers = ["Issue #", "Type", "Original Text", "Suggested Fix", "Severity", "Explanation"]
+                line_height = 4
 
-                pdf.set_fill_color(30, 58, 138)
-                pdf.set_text_color(255, 255, 255)
-                pdf.set_font('Arial', 'B', 7)
-                for j, header in enumerate(headers):
-                    pdf.cell(col_widths[j], 7, header, 1, 0, 'C', True)
-                pdf.ln()
-                pdf.set_text_color(0, 0, 0)
+                def draw_table_header():
+                    pdf.set_fill_color(30, 58, 138)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.set_font('Arial', 'B', 7)
+                    for j, header in enumerate(headers):
+                        pdf.cell(col_widths[j], 7, header, 1, 0, 'C', True)
+                    pdf.ln()
+                    pdf.set_text_color(0, 0, 0)
+
+                def calc_lines(text, col_width):
+                    if not text:
+                        return 1
+                    pdf.set_font('Arial', '', 7)
+                    char_width = pdf.get_string_width('A')
+                    chars_per_line = max(1, int(col_width / char_width))
+                    words = text.split()
+                    lines = 1
+                    current_line_len = 0
+                    for word in words:
+                        word_len = len(word)
+                        if current_line_len == 0:
+                            current_line_len = word_len
+                        elif current_line_len + 1 + word_len <= chars_per_line:
+                            current_line_len += 1 + word_len
+                        else:
+                            lines += 1
+                            current_line_len = word_len
+                    return lines
+
+                def draw_wrapped_cell(x, y, w, h, text, align='L', fill=True):
+                    pdf.set_xy(x, y)
+                    pdf.rect(x, y, w, h, 'DF')
+                    pdf.set_xy(x + 1, y + 1)
+                    pdf.multi_cell(w - 2, line_height, text, 0, align)
+
+                draw_table_header()
 
                 pdf.set_font('Arial', '', 7)
                 for idx, finding in enumerate(writing_findings, 1):
                     sev = finding.get("severity", "Low")
+                    orig = sanitize_text_for_pdf(str(finding.get("original_text", "")))
+                    sugg = sanitize_text_for_pdf(str(finding.get("suggestion", "")))
+                    expl = sanitize_text_for_pdf(str(finding.get("context", "")))
+                    f_type = sanitize_text_for_pdf(str(finding.get("type", "Other")))
+
+                    max_lines = max(
+                        calc_lines(orig, col_widths[2]),
+                        calc_lines(sugg, col_widths[3]),
+                        calc_lines(expl, col_widths[5]),
+                        1
+                    )
+                    row_height = max(7, max_lines * line_height + 2)
+
+                    if pdf.get_y() + row_height > pdf.page_break_trigger:
+                        pdf.add_page()
+                        draw_table_header()
+
                     if sev == "High":
                         pdf.set_fill_color(248, 215, 218)
                     elif sev == "Medium":
@@ -900,38 +965,49 @@ def generate_report_pdf(filename, document_name, document_summary, assessment_re
                     else:
                         pdf.set_fill_color(245, 245, 245)
 
-                    orig = sanitize_text_for_pdf(str(finding.get("original_text", ""))[:80])
-                    sugg = sanitize_text_for_pdf(str(finding.get("suggestion", ""))[:80])
-                    expl = sanitize_text_for_pdf(str(finding.get("context", ""))[:60])
-                    f_type = sanitize_text_for_pdf(str(finding.get("type", "Other")))
+                    row_y = pdf.get_y()
+                    row_x = pdf.get_x()
 
-                    row_height = max(7, max(len(orig), len(sugg)) // 8 * 4 + 7)
-                    row_height = min(row_height, 20)
+                    pdf.set_font('Arial', '', 7)
+                    x_pos = row_x
+                    pdf.rect(x_pos, row_y, col_widths[0], row_height, 'DF')
+                    pdf.set_xy(x_pos, row_y + (row_height - line_height) / 2)
+                    pdf.cell(col_widths[0], line_height, str(idx), 0, 0, 'C')
+                    x_pos += col_widths[0]
 
-                    if pdf.get_y() + row_height > pdf.page_break_trigger:
-                        pdf.add_page()
-                        pdf.set_fill_color(30, 58, 138)
-                        pdf.set_text_color(255, 255, 255)
-                        pdf.set_font('Arial', 'B', 7)
-                        for j, header in enumerate(headers):
-                            pdf.cell(col_widths[j], 7, header, 1, 0, 'C', True)
-                        pdf.ln()
-                        pdf.set_text_color(0, 0, 0)
-                        pdf.set_font('Arial', '', 7)
+                    pdf.rect(x_pos, row_y, col_widths[1], row_height, 'DF')
+                    pdf.set_xy(x_pos, row_y + (row_height - line_height) / 2)
+                    pdf.cell(col_widths[1], line_height, f_type, 0, 0, 'C')
+                    x_pos += col_widths[1]
 
-                        if sev == "High":
-                            pdf.set_fill_color(248, 215, 218)
-                        elif sev == "Medium":
-                            pdf.set_fill_color(255, 243, 205)
-                        else:
-                            pdf.set_fill_color(245, 245, 245)
+                    draw_wrapped_cell(x_pos, row_y, col_widths[2], row_height, orig)
+                    x_pos += col_widths[2]
 
-                    pdf.cell(col_widths[0], row_height, str(idx), 1, 0, 'C', True)
-                    pdf.cell(col_widths[1], row_height, f_type, 1, 0, 'C', True)
-                    pdf.cell(col_widths[2], row_height, orig[:45], 1, 0, 'L', True)
-                    pdf.cell(col_widths[3], row_height, sugg[:45], 1, 0, 'L', True)
-                    pdf.cell(col_widths[4], row_height, sev, 1, 0, 'C', True)
-                    pdf.cell(col_widths[5], row_height, expl[:30], 1, 1, 'L', True)
+                    if sev == "High":
+                        pdf.set_fill_color(248, 215, 218)
+                    elif sev == "Medium":
+                        pdf.set_fill_color(255, 243, 205)
+                    else:
+                        pdf.set_fill_color(245, 245, 245)
+
+                    draw_wrapped_cell(x_pos, row_y, col_widths[3], row_height, sugg)
+                    x_pos += col_widths[3]
+
+                    if sev == "High":
+                        pdf.set_fill_color(248, 215, 218)
+                    elif sev == "Medium":
+                        pdf.set_fill_color(255, 243, 205)
+                    else:
+                        pdf.set_fill_color(245, 245, 245)
+
+                    pdf.rect(x_pos, row_y, col_widths[4], row_height, 'DF')
+                    pdf.set_xy(x_pos, row_y + (row_height - line_height) / 2)
+                    pdf.cell(col_widths[4], line_height, sev, 0, 0, 'C')
+                    x_pos += col_widths[4]
+
+                    draw_wrapped_cell(x_pos, row_y, col_widths[5], row_height, expl)
+
+                    pdf.set_y(row_y + row_height)
 
                 pdf.ln(5)
 

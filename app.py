@@ -670,11 +670,13 @@ with st.sidebar:
                                 Important:
                                 - The score MUST be an integer between 0 and {max_score}
                                 - Follow the scoring logic exactly: {scoring_logic}
+                                - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
+                                - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
+                                - Be deterministic: the same document should always receive the same score for this criterion
                                 - Provide specific evidence from BOTH the case study AND teaching note
                                 - Ensure reasoning and document_reference are STRINGS, not lists
                                 """
                             else:
-                                # For other areas, use only the case study
                                 prompt = f"""
                                 You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
                                 
@@ -701,12 +703,16 @@ with st.sidebar:
                                 Important:
                                 - The score MUST be an integer between 0 and {max_score}
                                 - Follow the scoring logic exactly: {scoring_logic}
+                                - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
+                                - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
+                                - Be deterministic: the same document should always receive the same score for this criterion
                                 - Provide specific evidence from the document
                                 - Ensure reasoning and document_reference are STRINGS, not lists
                                 """
                             
                             with st.spinner(f"Analyzing {criterion_info['name']}..."):
-                                result = call_openai_api(prompt, response_format="json_object")
+                                scoring_temp = 0.5 if is_informational else 0.1
+                                result = call_openai_api(prompt, response_format="json_object", temperature=scoring_temp)
                                 
                                 if is_informational:
                                     if isinstance(result.get("narrative"), list):
