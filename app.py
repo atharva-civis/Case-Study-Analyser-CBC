@@ -10,8 +10,8 @@ from io import BytesIO
 import PyPDF2
 import docx
 from datetime import datetime, timedelta
-from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked
-from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS
+from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database_pdf, run_caseconnect_analysis
+from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS, KCM_COMPETENCIES
 from db_models import (
     initialize_session_state, 
     register_user, 
@@ -25,10 +25,18 @@ from db_models import (
 
 # Set page configuration
 st.set_page_config(
-    page_title="Case Study Analyser",
+    page_title="CBC-India AGK Case Study Suite",
     page_icon="📊",
     layout="wide"
 )
+
+# Load case database for CaseConnect
+CASE_DB_PATH = "attached_assets/Amrit_Gyaan_Kosh___Case_Database_-_List_of_uploaded_cases_1774448401302.pdf"
+@st.cache_data
+def get_case_database():
+    return load_case_database_pdf(CASE_DB_PATH)
+
+CASE_DATABASE_TEXT, CASE_COUNT = get_case_database()
 
 # Custom CSS to improve the appearance
 st.markdown("""
@@ -305,37 +313,47 @@ def display_header_with_logos():
         if os.path.exists("attached_assets/cbc_logo_1770210514857.png"):
             st.image("attached_assets/cbc_logo_1770210514857.png", width=100)
     with col2:
-        st.title("Case Study Analyser")
+        active = st.session_state.get("active_tool", None)
+        if active == "analyser":
+            st.title("Case Study Analyser")
+        elif active == "caseconnect":
+            st.title("CaseConnect")
+        else:
+            st.title("CBC-India AGK Case Study Suite")
     with col3:
         if os.path.exists("attached_assets/agk_logo_1770210514857.png"):
             st.image("attached_assets/agk_logo_1770210514857.png", width=100)
 
 # Show login page or main app
 if not st.session_state.logged_in:
-    # Application title with logos
     display_header_with_logos()
-    
-    # Show login page
     show_login_page()
         
 else:
-    # Application title and description for logged-in users with logos
     display_header_with_logos()
     
-    # User profile section
+    active = st.session_state.get("active_tool", None)
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown("""
-        This tool helps analyze case studies against the CBC-India AGK Case Study Review Rubric.
-        Upload your case study document, and the AI will evaluate it based on four key assessment areas:
-        1. Structure, Chronology & Logical Flow (30%)
-        2. Language, Citations & Factual Accuracy (30%)
-        3. Alignment with Teaching Note, Sector & Competencies (15%)
-        4. Overall Effectiveness & Impact (25%)
-        """)
+        if active == "analyser":
+            st.markdown("""
+            This tool helps analyze case studies against the CBC-India AGK Case Study Review Rubric.
+            Upload your case study document, and the AI will evaluate it based on four key assessment areas:
+            1. Structure, Chronology & Logical Flow (30%)
+            2. Language, Citations & Factual Accuracy (30%)
+            3. Alignment with Teaching Note, Sector & Competencies (15%)
+            4. Overall Effectiveness & Impact (25%)
+            """)
+        elif active == "caseconnect":
+            st.markdown(f"""
+            CaseConnect helps you discover relevant governance case studies from the AGK repository 
+            for your teaching programme. Upload your course outline and answer a few questions — 
+            the tool will recommend cases aligned with your course design, competencies, and sector.
+            
+            *Referring to {CASE_COUNT} case studies from the AGK repository.*
+            """)
     
     with col2:
-        # User profile with logout button
         st.markdown(f"""
         <div class="user-profile">
             <div class="avatar">{st.session_state.username[0].upper()}</div>
@@ -345,12 +363,13 @@ else:
         </div>
         """, unsafe_allow_html=True)
         
-        # Simple logout button instead of JavaScript approach
         if st.button("Logout", key="logout_button"):
             logout_user()
             st.rerun()
 
 # Initialize session state variables if they don't exist
+if 'active_tool' not in st.session_state:
+    st.session_state.active_tool = None
 if 'case_study_text' not in st.session_state:
     st.session_state.case_study_text = ""
 if 'teaching_note_text' not in st.session_state:
@@ -377,109 +396,89 @@ if 'sector_subthemes' not in st.session_state:
     st.session_state.sector_subthemes = {}
 if 'keywords' not in st.session_state:
     st.session_state.keywords = []
-
-# Function to display logos side by side
-def display_logos():
-    col1, col2 = st.columns(2)
-    with col1:
-        if os.path.exists("attached_assets/cbc_logo_1770210514857.png"):
-            st.image("attached_assets/cbc_logo_1770210514857.png", width=120)
-    with col2:
-        if os.path.exists("attached_assets/agk_logo_1770210514857.png"):
-            st.image("attached_assets/agk_logo_1770210514857.png", width=120)
+if 'sidebar_tab' not in st.session_state:
+    st.session_state.sidebar_tab = "New Assessment"
+if 'caseconnect_results' not in st.session_state:
+    st.session_state.caseconnect_results = None
+if 'caseconnect_curriculum_text' not in st.session_state:
+    st.session_state.caseconnect_curriculum_text = ""
 
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
-    if st.session_state.logged_in:
-        # Display logos at the top of sidebar
-        display_logos()
-        st.markdown("---")
-        
-        # Initialize sidebar tab state if not present
-        if 'sidebar_tab' not in st.session_state:
-            st.session_state.sidebar_tab = "New Assessment"
-        
-        # Navigation menu using streamlit-option-menu
-        selected = option_menu(
-            menu_title=None,
-            options=["New Assessment", "History"],
-            icons=["file-earmark-text", "clock-history"],
-            menu_icon="cast",
-            default_index=0 if st.session_state.sidebar_tab == "New Assessment" else 1,
-            orientation="vertical",
-            styles={
-                "container": {"padding": "5px", "background-color": "#fafafa"},
-                "icon": {"color": "#1E3A8A", "font-size": "18px"},
-                "nav-link": {
-                    "font-size": "16px",
-                    "text-align": "left",
-                    "margin": "5px",
-                    "padding": "10px 15px",
-                    "--hover-color": "#eee",
-                    "border-radius": "8px"
-                },
-                "nav-link-selected": {
-                    "background-color": "#074fa5",
-                    "color": "white",
-                    "font-weight": "600"
-                },
-            }
-        )
-        
-        # Custom CSS to force white icon when selected in option-menu
-        st.markdown("""
-        <style>
-        div[data-testid="stVerticalBlock"] div.nav-link-selected i {
-            color: white !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Handle tab change
-        if selected != st.session_state.sidebar_tab:
-            st.session_state.sidebar_tab = selected
-            
-            if selected == "New Assessment":
-                # Check if we're already loading from history - don't clear if so
-                if not st.session_state.get('loaded_from_history', False):
-                    # Completely reset all assessment-related data
-                    if 'case_study_text' in st.session_state:
-                        st.session_state.case_study_text = ""
-                    if 'teaching_note_text' in st.session_state:
-                        st.session_state.teaching_note_text = ""
-                    if 'case_study_analysis' in st.session_state:
-                        st.session_state.case_study_analysis = None
-                    if 'case_study_summary' in st.session_state:
-                        st.session_state.case_study_summary = ""
-                    if 'assessment_results' in st.session_state:
-                        st.session_state.assessment_results = {}
-                    if 'recommendations' in st.session_state:
-                        st.session_state.recommendations = ""
-                    if 'document_name' in st.session_state:
-                        st.session_state.document_name = ""
-                    if 'teaching_note_name' in st.session_state:
-                        st.session_state.teaching_note_name = ""
-                    if 'weighted_scores' in st.session_state:
-                        st.session_state.weighted_scores = None
-                    if 'competency_mapping' in st.session_state:
-                        st.session_state.competency_mapping = None
-                    if 'sector_tags' in st.session_state:
-                        st.session_state.sector_tags = []
-                    if 'sector_subthemes' in st.session_state:
-                        st.session_state.sector_subthemes = {}
-                    if 'keywords' in st.session_state:
-                        st.session_state.keywords = []
-                else:
-                    st.session_state.loaded_from_history = False
-            elif selected == "History":
-                if 'selected_assessment' in st.session_state:
-                    st.session_state.selected_assessment = None
-            
+    if st.session_state.logged_in and st.session_state.get("active_tool") is not None:
+        if st.button("← Back to Home", key="back_home_btn", use_container_width=True):
+            st.session_state.active_tool = None
+            st.session_state.caseconnect_results = None
+            st.session_state.caseconnect_curriculum_text = ""
             st.rerun()
-        
+
         st.markdown("---")
+
+        if st.session_state.active_tool == "analyser":
+            selected = option_menu(
+                menu_title=None,
+                options=["New Assessment", "History"],
+                icons=["file-earmark-text", "clock-history"],
+                menu_icon="cast",
+                default_index=0 if st.session_state.sidebar_tab == "New Assessment" else 1,
+                orientation="vertical",
+                styles={
+                    "container": {"padding": "5px", "background-color": "#fafafa"},
+                    "icon": {"color": "#1E3A8A", "font-size": "18px"},
+                    "nav-link": {
+                        "font-size": "16px",
+                        "text-align": "left",
+                        "margin": "5px",
+                        "padding": "10px 15px",
+                        "--hover-color": "#eee",
+                        "border-radius": "8px"
+                    },
+                    "nav-link-selected": {
+                        "background-color": "#074fa5",
+                        "color": "white",
+                        "font-weight": "600"
+                    },
+                }
+            )
+
+            st.markdown("""
+            <style>
+            div[data-testid="stVerticalBlock"] div.nav-link-selected i {
+                color: white !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            if selected != st.session_state.sidebar_tab:
+                st.session_state.sidebar_tab = selected
+                
+                if selected == "New Assessment":
+                    if not st.session_state.get('loaded_from_history', False):
+                        st.session_state.case_study_text = ""
+                        st.session_state.teaching_note_text = ""
+                        st.session_state.case_study_analysis = None
+                        st.session_state.case_study_summary = ""
+                        st.session_state.assessment_results = {}
+                        if 'recommendations' in st.session_state:
+                            st.session_state.recommendations = ""
+                        st.session_state.document_name = ""
+                        st.session_state.teaching_note_name = ""
+                        st.session_state.weighted_scores = None
+                        st.session_state.competency_mapping = None
+                        st.session_state.sector_tags = []
+                        st.session_state.sector_subthemes = {}
+                        st.session_state.keywords = []
+                    else:
+                        st.session_state.loaded_from_history = False
+                elif selected == "History":
+                    if 'selected_assessment' in st.session_state:
+                        st.session_state.selected_assessment = None
+                
+                st.rerun()
+            
+            st.markdown("---")
         
-        if st.session_state.sidebar_tab == "New Assessment":
+        if st.session_state.sidebar_tab == "New Assessment" and st.session_state.get("active_tool") == "analyser":
             st.header("Upload Documents")
             
             st.subheader("1. Case Study Document")
@@ -864,7 +863,7 @@ with st.sidebar:
                 else:
                     st.warning("Please upload the Teaching Note document.")
                 
-        elif st.session_state.sidebar_tab == "History":
+        elif st.session_state.sidebar_tab == "History" and st.session_state.get("active_tool") == "analyser":
             st.header("Assessment History")
             
             if st.session_state.user_id:
@@ -923,13 +922,182 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error retrieving assessment history: {str(e)}")
                     st.info("Please try refreshing or check database connection.")
+        if st.session_state.get("active_tool") == "caseconnect":
+            st.header("Course Outline")
+            st.caption("Upload your syllabus, session plan, or curriculum outline (optional but encouraged)")
+            curriculum_file = st.file_uploader("Choose file", type=["pdf", "docx"], key="curriculum_uploader")
+            
+            if curriculum_file is not None:
+                try:
+                    if curriculum_file.type == "application/pdf":
+                        st.session_state.caseconnect_curriculum_text = extract_text_from_pdf(curriculum_file)
+                    elif curriculum_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        st.session_state.caseconnect_curriculum_text = extract_text_from_docx(curriculum_file)
+                    st.success(f"Uploaded: {curriculum_file.name}")
+                    st.info(f"Extracted {len(st.session_state.caseconnect_curriculum_text)} characters")
+                except Exception as e:
+                    st.error(f"Error processing file: {str(e)}")
+            
+            st.markdown("---")
+            st.info(f"Referencing {CASE_COUNT} case studies from the AGK repository")
+
     else:
-        # For non-logged in users, show basic upload
-        st.header("Upload Case Study Document")
-        st.info("Please login to use the case study assessment tool.")
+        st.info("Please login to access the tools.")
 
 # Main content area
-if st.session_state.case_study_text:
+if st.session_state.get("active_tool") is None and st.session_state.logged_in:
+    st.header("Assessment Framework")
+    st.write("The Case Study Analyser uses the CBC-India AGK Case Study Review Rubric with four weighted assessment areas:")
+    
+    for area_id, area_info in ASSESSMENT_AREAS.items():
+        with st.expander(f"{area_info['name']} (Weight: {area_info['weight']*100:.0f}%, Total Points: {area_info['total_points']})"):
+            st.write(area_info["description"])
+            st.subheader("Criteria:")
+            criteria = ASSESSMENT_CRITERIA[area_id]
+            for criterion_id, criterion_info in criteria.items():
+                if criterion_info.get("informational", False):
+                    st.write(f"**{criterion_info['name']}** (Informational — no score)")
+                    st.write(f"  - {criterion_info['description']}")
+                else:
+                    st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
+                    st.write(f"  - {criterion_info['description']}")
+                    st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")
+
+    st.markdown("---")
+
+    tool_col1, tool_col2 = st.columns(2)
+    
+    with tool_col1:
+        st.markdown("""
+        <div class="card" style="min-height: 280px;">
+            <h3 style="color: #1E3A8A; margin-top: 0;">Case Study Analyser</h3>
+            <p>Evaluate case studies against the CBC-India AGK Case Study Review Rubric. Upload your case study and teaching note documents, and the AI will assess them across four weighted areas — Structure, Language, Alignment, and Effectiveness — generating a detailed scoring report with recommendations.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Get Started — Case Study Analyser", key="start_analyser", use_container_width=True):
+            st.session_state.active_tool = "analyser"
+            st.session_state.sidebar_tab = "New Assessment"
+            st.rerun()
+    
+    with tool_col2:
+        st.markdown(f"""
+        <div class="card" style="min-height: 280px;">
+            <h3 style="color: #1E3A8A; margin-top: 0;">CaseConnect</h3>
+            <p>Discover relevant governance case studies from the AGK repository for your teaching programme. Upload your course outline and answer a short questionnaire — the tool will recommend cases aligned with your course design, competencies, and sector. Currently referencing {CASE_COUNT} case studies.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Get Started — CaseConnect", key="start_caseconnect", use_container_width=True):
+            st.session_state.active_tool = "caseconnect"
+            st.rerun()
+
+elif st.session_state.get("active_tool") == "caseconnect" and st.session_state.logged_in:
+    st.header("Course Discovery Questionnaire")
+    st.write("Answer the following questions to help us recommend the most relevant case studies for your teaching programme.")
+
+    all_competency_names = []
+    for category in ["behavioral", "functional"]:
+        for comp_key, comp_data in KCM_COMPETENCIES.get(category, {}).items():
+            all_competency_names.append(comp_data["name"])
+
+    all_sectors = list(SECTOR_MAPPING.keys())
+
+    with st.form("caseconnect_form"):
+        q_learners = st.text_area(
+            "1. Who are the learners?",
+            placeholder="e.g., Mid-career IAS officers, State government training faculty, Fresh recruits to civil services...",
+            height=80
+        )
+        
+        q_objective = st.text_area(
+            "2. What is the primary learning objective?",
+            placeholder="e.g., Understanding stakeholder coordination in large infrastructure projects, Developing leadership in crisis situations...",
+            height=80
+        )
+        
+        q_competencies = st.multiselect(
+            "3. Which competencies are you focusing on? (Karmayogi Competency Model)",
+            options=all_competency_names,
+            default=[]
+        )
+        
+        q_duration = st.selectbox(
+            "4. Duration of the session?",
+            options=["30 minutes", "60 minutes", "90 minutes", "2 hours", "Half day (3-4 hours)", "Full day", "Multi-day programme"]
+        )
+        
+        q_sector = st.multiselect(
+            "5. What is the Sector/Theme?",
+            options=all_sectors,
+            default=[]
+        )
+
+        submitted = st.form_submit_button("Find Matching Cases", use_container_width=True)
+
+    if submitted:
+        if not q_learners and not q_objective and not q_competencies and not q_sector:
+            st.warning("Please fill in at least one question to get recommendations.")
+        else:
+            questionnaire = {
+                "learners": q_learners,
+                "objective": q_objective,
+                "competencies": q_competencies,
+                "duration": q_duration,
+                "sector": ", ".join(q_sector) if q_sector else ""
+            }
+            
+            with st.spinner("Analysing your inputs and finding matching cases..."):
+                st.session_state.caseconnect_results = run_caseconnect_analysis(
+                    questionnaire,
+                    st.session_state.caseconnect_curriculum_text,
+                    CASE_DATABASE_TEXT,
+                    CASE_COUNT
+                )
+
+    if st.session_state.caseconnect_results:
+        results = st.session_state.caseconnect_results
+        
+        st.markdown("---")
+        st.header("Recommended Cases for Your Course")
+        
+        case_recs = results.get("case_recommendations", [])
+        if case_recs:
+            for i, rec in enumerate(case_recs, 1):
+                with st.expander(f"**{i}. {rec.get('case_title', 'Untitled')}**", expanded=(i <= 3)):
+                    st.write(f"**Why it fits:** {rec.get('why_it_fits', '')}")
+                    comps = rec.get("relevant_competencies", [])
+                    if comps:
+                        comp_badges = " ".join([f'<span class="score-badge score-good">{c}</span>' for c in comps])
+                        st.markdown(f"**Relevant Competencies:** {comp_badges}", unsafe_allow_html=True)
+                    dur = rec.get("suggested_duration", "")
+                    if dur:
+                        st.write(f"**Suggested Duration:** {dur}")
+        else:
+            st.info("No specific case recommendations were generated. Try providing more details in the questionnaire.")
+
+        module_suggestions = results.get("module_suggestions", [])
+        if module_suggestions:
+            st.markdown("---")
+            st.header("Module-Level Suggestions")
+            for mod in module_suggestions:
+                st.subheader(mod.get("module_name", "Module"))
+                mod_cases = mod.get("recommended_cases", [])
+                if mod_cases:
+                    for mc in mod_cases:
+                        st.write(f"- **{mc.get('case_title', '')}** — {mc.get('relevance', '')}")
+
+        teaching_strategy = results.get("teaching_strategy", "")
+        if teaching_strategy:
+            st.markdown("---")
+            st.header("Teaching Strategy")
+            st.write(teaching_strategy)
+
+        additional = results.get("additional_notes", "")
+        if additional:
+            st.markdown("---")
+            st.header("Additional Notes")
+            st.write(additional)
+
+elif st.session_state.get("active_tool") == "analyser" and st.session_state.case_study_text:
     # Document info section
     st.header("Document Information")
     st.write(f"**Filename:** {st.session_state.document_name}")
@@ -1441,26 +1609,8 @@ if st.session_state.case_study_text:
         if st.session_state.teaching_note_text:
             st.subheader("Teaching Note Document")
             st.text_area("Teaching Note Text", st.session_state.teaching_note_text, height=250, key="view_teaching_note")
-else:
-    # Placeholder content when no document is loaded
-    st.info("Please upload both Case Study and Teaching Note documents to begin analysis")
-    
-    # Display info about the assessment framework
-    st.header("Assessment Framework")
-    st.write("The Case Study Analyser uses the CBC-India AGK Case Study Review Rubric with four weighted assessment areas:")
-    
-    for area_id, area_info in ASSESSMENT_AREAS.items():
-        with st.expander(f"{area_info['name']} (Weight: {area_info['weight']*100:.0f}%, Total Points: {area_info['total_points']})"):
-            st.write(area_info["description"])
-            
-            # List the criteria for this area
-            st.subheader("Criteria:")
-            criteria = ASSESSMENT_CRITERIA[area_id]
-            for criterion_id, criterion_info in criteria.items():
-                if criterion_info.get("informational", False):
-                    st.write(f"**{criterion_info['name']}** (Informational — no score)")
-                    st.write(f"  - {criterion_info['description']}")
-                else:
-                    st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
-                    st.write(f"  - {criterion_info['description']}")
-                    st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")
+elif st.session_state.get("active_tool") == "analyser" and not st.session_state.case_study_text:
+    st.info("Please upload both Case Study and Teaching Note documents using the sidebar to begin analysis.")
+
+elif not st.session_state.logged_in:
+    st.info("Please login to access the tools.")

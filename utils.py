@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import PyPDF2
 import docx
 import requests
@@ -1151,3 +1152,126 @@ def get_download_link(pdf_bytes, filename, text):
     b64 = base64.b64encode(pdf_bytes.read()).decode()
     href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">{text}</a>'
     return href
+
+
+def load_case_database_pdf(pdf_path):
+    text = ""
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_path)
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+    except Exception as e:
+        return "", 0
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if lines and "Case Study Title" in lines[0]:
+        lines = lines[1:]
+    case_count = 0
+    for line in lines:
+        if re.match(r'^[A-Z]', line) and len(line) < 80 and not re.match(r'^(The |This |In |A |An |It |By |To |Mr|Ms|Dr|He |She |His |Her |Under |Following |Being |These |After )', line):
+            case_count += 1
+    if case_count < 5:
+        case_count = max(40, len(lines) // 10)
+    return text, case_count
+
+
+def run_caseconnect_analysis(questionnaire, curriculum_text, case_database_text, case_count):
+    learners = questionnaire.get("learners", "")
+    objective = questionnaire.get("objective", "")
+    competencies = questionnaire.get("competencies", [])
+    duration = questionnaire.get("duration", "")
+    sector = questionnaire.get("sector", "")
+
+    competencies_str = ", ".join(competencies) if competencies else "Not specified"
+
+    curriculum_section = ""
+    if curriculum_text:
+        curriculum_section = f"""
+=== UPLOADED COURSE OUTLINE / CURRICULUM ===
+{curriculum_text[:8000]}
+===
+
+The faculty has uploaded their course outline above. Analyse it to identify modules, themes, and learning objectives.
+Use this to provide module-level case suggestions in addition to overall recommendations.
+"""
+
+    prompt = f"""You are CaseConnect, an AI-enabled case discovery tool for the Amrit Gyaan Kosh (AGK) repository of Indian governance case studies.
+
+A faculty member is looking for case studies to integrate into their teaching programme. Based on their inputs and the case database below, recommend the most relevant cases.
+
+=== FACULTY INPUTS ===
+1. Who are the learners? {learners}
+2. Primary learning objective: {objective}
+3. Competencies being focused on (Karmayogi Competency Model): {competencies_str}
+4. Duration of the session: {duration}
+5. Sector/Theme: {sector}
+
+{curriculum_section}
+
+=== AGK CASE STUDY DATABASE ({case_count} cases) ===
+{case_database_text[:45000]}
+===
+
+Based on the above, provide your recommendations as a JSON object with this structure:
+{{
+    "case_recommendations": [
+        {{
+            "case_title": "Exact title from the database",
+            "why_it_fits": "2-3 sentence explanation of why this case is relevant to the faculty's needs",
+            "relevant_competencies": ["list of KCM competencies this case develops"],
+            "suggested_duration": "recommended session duration for this case"
+        }}
+    ],
+    "module_suggestions": [
+        {{
+            "module_name": "Module name from the curriculum (if provided)",
+            "recommended_cases": [
+                {{
+                    "case_title": "Case title",
+                    "relevance": "Why this case fits this module"
+                }}
+            ]
+        }}
+    ],
+    "teaching_strategy": "A paragraph suggesting how to best use these cases in the teaching programme, including session format, discussion approach, and sequencing advice.",
+    "additional_notes": "Any additional observations or suggestions for the faculty."
+}}
+
+Rules:
+- Recommend 5-8 cases that best match the faculty's needs
+- ONLY recommend cases that exist in the database above — do not invent case titles
+- If a curriculum was uploaded, provide module_suggestions mapping cases to specific modules
+- If no curriculum was uploaded, return an empty list for module_suggestions
+- Be specific about why each case fits — reference the learner profile, competencies, and sector
+- Teaching strategy should be practical and actionable
+- Consider the session duration when making recommendations"""
+
+    result = call_openai_api(prompt, response_format="json_object", temperature=0.3)
+
+    if isinstance(result, str):
+        return {
+            "case_recommendations": [],
+            "module_suggestions": [],
+            "teaching_strategy": "Unable to generate recommendations. Please try again.",
+            "additional_notes": str(result)
+        }
+
+    if not isinstance(result, dict):
+        return {
+            "case_recommendations": [],
+            "module_suggestions": [],
+            "teaching_strategy": "Unable to generate recommendations. Please try again.",
+            "additional_notes": ""
+        }
+
+    if "case_recommendations" not in result:
+        result["case_recommendations"] = []
+    if "module_suggestions" not in result:
+        result["module_suggestions"] = []
+    if "teaching_strategy" not in result:
+        result["teaching_strategy"] = ""
+    if "additional_notes" not in result:
+        result["additional_notes"] = ""
+
+    return result
