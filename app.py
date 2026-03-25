@@ -711,8 +711,7 @@ with st.sidebar:
                                 """
                             
                             with st.spinner(f"Analyzing {criterion_info['name']}..."):
-                                scoring_temp = 0.5 if is_informational else 0.1
-                                result = call_openai_api(prompt, response_format="json_object", temperature=scoring_temp)
+                                result = call_openai_api(prompt, response_format="json_object", temperature=0.1)
                                 
                                 if is_informational:
                                     if isinstance(result.get("narrative"), list):
