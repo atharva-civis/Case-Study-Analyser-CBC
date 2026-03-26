@@ -207,11 +207,6 @@ st.markdown("""
     .user-profile .info p {
         margin: 0;
     }
-    .user-profile .info .email {
-        font-size: 0.75em;
-        color: #6B7280;
-        margin-top: 4px;
-    }
     .user-profile .actions {
         margin-left: 10px;
     }
@@ -365,7 +360,6 @@ else:
             <div class="avatar">{st.session_state.username[0].upper()}</div>
             <div class="info">
                 <p><strong>{st.session_state.username}</strong></p>
-                {f'<p class="email">{st.session_state.get("email", "")}</p>' if st.session_state.get("email") else ""}
             </div>
         </div>
         """, unsafe_allow_html=True)
