@@ -247,12 +247,14 @@ def login_user(user):
     st.session_state.logged_in = True
     st.session_state.user_id = user.id
     st.session_state.username = user.username
+    st.session_state.email = user.email
 
 def logout_user():
     """Clear session state for logout"""
     st.session_state.logged_in = False
     st.session_state.user_id = None
     st.session_state.username = None
+    st.session_state.email = None
     # Clear assessment related session state
     if 'policy_text' in st.session_state:
         st.session_state.policy_text = ""
