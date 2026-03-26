@@ -359,7 +359,7 @@ else:
         <div class="user-profile">
             <div class="avatar">{st.session_state.username[0].upper()}</div>
             <div class="info">
-                <p><strong>{st.session_state.username}</strong></p>
+                <p class="text-[14px]"><strong>{st.session_state.username}</strong></p>
             </div>
         </div>
         """, unsafe_allow_html=True)
