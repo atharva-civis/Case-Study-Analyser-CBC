@@ -137,6 +137,47 @@ st.markdown("""
         background-color: #F9FAFB;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
+    /* Dataframe table column sizing to prevent text overlap */
+    .stDataFrame [data-testid="stDataFrameResizable"] {
+        overflow-x: auto !important;
+    }
+    .stDataFrame td, .stDataFrame th {
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        min-width: 80px !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Reduce email font size in header to prevent wrapping */
+    [data-testid="stAppViewBlockContainer"] header,
+    header [data-testid="stStatusWidget"],
+    .stApp header span,
+    header button span {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Suite intro card styling */
+    .suite-intro {
+        padding: 20px 0 10px 0;
+    }
+    .tool-intro {
+        border-left: 4px solid #074fa5;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        background-color: #F8FAFC;
+        border-radius: 0 8px 8px 0;
+    }
+    .tool-intro h4 {
+        color: #074fa5;
+        margin: 0 0 8px 0;
+    }
+    .tool-intro p {
+        color: #4B5563;
+        margin: 0;
+        font-size: 0.95em;
+        line-height: 1.6;
+    }
+
     /* Auth form styling */
     .auth-form {
         max-width: 450px;
@@ -949,22 +990,23 @@ with st.sidebar:
 
 # Main content area
 if st.session_state.get("active_tool") is None and st.session_state.logged_in:
-    st.header("Assessment Framework")
-    st.write("The Case Study Analyser uses the CBC-India AGK Case Study Review Rubric with four weighted assessment areas:")
-    
-    for area_id, area_info in ASSESSMENT_AREAS.items():
-        with st.expander(f"{area_info['name']} (Weight: {area_info['weight']*100:.0f}%, Total Points: {area_info['total_points']})"):
-            st.write(area_info["description"])
-            st.subheader("Criteria:")
-            criteria = ASSESSMENT_CRITERIA[area_id]
-            for criterion_id, criterion_info in criteria.items():
-                if criterion_info.get("informational", False):
-                    st.write(f"**{criterion_info['name']}** (Informational — no score)")
-                    st.write(f"  - {criterion_info['description']}")
-                else:
-                    st.write(f"**{criterion_info['name']}** (Max: {criterion_info.get('max_score', 3)} points)")
-                    st.write(f"  - {criterion_info['description']}")
-                    st.write(f"  - *Scoring:* {criterion_info.get('scoring_logic', '')}")
+    st.header("Welcome to the CBC-India AGK Case Study Suite")
+    st.write("This suite brings together AI-powered tools built for faculty, trainers, and programme designers working with the Amrit Gyaan Kosh (AGK) case study repository. Whether you are reviewing a case study before publication or looking for the right case to use in your classroom, these tools are here to help.")
+
+    st.markdown("---")
+
+    st.markdown("""
+    <div class="suite-intro">
+        <div class="tool-intro">
+            <h4>📝 Case Study Analyser</h4>
+            <p>Upload a case study and its teaching note, and the AI will evaluate them against the CBC-India AGK Case Study Review Rubric. You will receive a detailed report covering structure, language quality, alignment with the teaching note, and overall effectiveness — complete with scores, recommendations, and a downloadable PDF report.</p>
+        </div>
+        <div class="tool-intro">
+            <h4>🔍 CaseConnect</h4>
+            <p>Tell us about your learners, learning objectives, target competencies, session duration, and sector focus. CaseConnect will search the AGK repository and recommend the most relevant case studies for your course — along with suggested teaching modules and instructional strategies to get the most out of each case.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1506,7 +1548,20 @@ elif st.session_state.get("active_tool") == "analyser" and st.session_state.case
                                 return colors.get(val, "")
 
                             styled_df = findings_df.style.applymap(style_severity, subset=["Severity"])
-                            st.dataframe(styled_df, use_container_width=True, hide_index=True, height=min(400, 50 + len(table_data) * 35))
+                            st.dataframe(
+                                styled_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                height=min(400, 50 + len(table_data) * 35),
+                                column_config={
+                                    "Issue #": st.column_config.NumberColumn(width="small"),
+                                    "Type": st.column_config.TextColumn(width="small"),
+                                    "Original Text": st.column_config.TextColumn(width="large"),
+                                    "Suggested Fix": st.column_config.TextColumn(width="large"),
+                                    "Severity": st.column_config.TextColumn(width="small"),
+                                    "Explanation": st.column_config.TextColumn(width="large"),
+                                }
+                            )
 
                             with st.expander("View All Findings in Detail", expanded=False):
                                 for i, f in enumerate(writing_findings, 1):
@@ -1614,6 +1669,19 @@ elif st.session_state.get("active_tool") == "analyser" and st.session_state.case
             st.text_area("Teaching Note Text", st.session_state.teaching_note_text, height=250, key="view_teaching_note")
 elif st.session_state.get("active_tool") == "analyser" and not st.session_state.case_study_text:
     st.info("Please upload both Case Study and Teaching Note documents using the sidebar to begin analysis.")
+
+    with st.expander("View Assessment Framework", expanded=False):
+        st.write("The Case Study Analyser evaluates documents against the CBC-India AGK Case Study Review Rubric across four weighted assessment areas:")
+        for area_id, area_info in ASSESSMENT_AREAS.items():
+            st.markdown(f"**{area_info['name']}** (Weight: {area_info['weight']*100:.0f}%, Total Points: {area_info['total_points']})")
+            st.write(area_info["description"])
+            criteria = ASSESSMENT_CRITERIA[area_id]
+            for criterion_id, criterion_info in criteria.items():
+                if criterion_info.get("informational", False):
+                    st.write(f"- {criterion_info['name']} (Informational — no score)")
+                else:
+                    st.write(f"- {criterion_info['name']} (Max: {criterion_info.get('max_score', 3)} points)")
+            st.markdown("---")
 
 elif not st.session_state.logged_in:
     st.info("Please login to access the tools.")
