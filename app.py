@@ -148,11 +148,10 @@ st.markdown("""
         font-size: 0.85rem !important;
     }
 
-    /* Reduce email font size in header to prevent wrapping */
-    [data-testid="stAppViewBlockContainer"] header,
-    header [data-testid="stStatusWidget"],
-    .stApp header span,
-    header button span {
+    /* Reduce email font size in header user menu to prevent wrapping */
+    [data-testid="stMainMenu"] span,
+    .stApp [data-testid="stStatusWidget"] span,
+    [data-testid="stAppViewContainer"] > header span {
         font-size: 0.75rem !important;
     }
     
