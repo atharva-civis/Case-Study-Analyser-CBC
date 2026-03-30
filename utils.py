@@ -12,6 +12,126 @@ from fpdf import FPDF
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import numpy as np
+from spellchecker import SpellChecker
+
+_spell_checker = None
+
+def _get_spell_checker():
+    global _spell_checker
+    if _spell_checker is None:
+        _spell_checker = SpellChecker()
+    return _spell_checker
+
+
+def _is_valid_english_word(word):
+    sc = _get_spell_checker()
+    w = word.lower().strip().strip(".,;:!?\"'()[]{}…–—")
+    if not w or not w.isalpha():
+        return True
+    if w in _get_common_words():
+        return True
+    known = sc.known([w])
+    return w in known
+
+
+def _validate_spelling_finding(finding):
+    orig = finding.get("original_text", "").strip()
+    suggestion = finding.get("suggestion", "").strip()
+
+    if _is_american_british_pair(orig, suggestion):
+        return True
+
+    orig_joined = re.sub(r'\s+', '', orig).lower()
+    sugg_joined = re.sub(r'\s+', '', suggestion).lower()
+
+    if orig_joined == sugg_joined:
+        return False
+
+    if orig_joined.isalpha() and _is_valid_english_word(orig_joined):
+        if sugg_joined.isalpha() and _is_valid_english_word(sugg_joined):
+            return False
+        return False
+
+    words = orig.lower().split()
+    if len(words) > 1 and all(_is_valid_english_word(w) for w in words if w.isalpha()):
+        sugg_words = suggestion.lower().split()
+        if len(sugg_words) >= 1:
+            if all(_is_valid_english_word(w) for w in sugg_words if w.isalpha()):
+                return False
+
+    return True
+
+
+_AMERICAN_TO_BRITISH = {
+    "organization": "organisation", "organizations": "organisations",
+    "organize": "organise", "organized": "organised", "organizing": "organising",
+    "center": "centre", "centers": "centres",
+    "analyze": "analyse", "analyzed": "analysed", "analyzing": "analysing",
+    "color": "colour", "colors": "colours", "colored": "coloured",
+    "favor": "favour", "favored": "favoured", "favorable": "favourable",
+    "honor": "honour", "honored": "honoured",
+    "labor": "labour",
+    "program": "programme", "programs": "programmes",
+    "defense": "defence",
+    "offense": "offence",
+    "license": "licence",
+    "practice": "practise",
+    "realize": "realise", "realized": "realised", "realizing": "realising",
+    "recognize": "recognise", "recognized": "recognised", "recognizing": "recognising",
+    "specialize": "specialise", "specialized": "specialised",
+    "utilize": "utilise", "utilized": "utilised", "utilizing": "utilising",
+    "standardize": "standardise", "standardized": "standardised",
+    "modernize": "modernise", "modernized": "modernised",
+    "privatize": "privatise", "privatized": "privatised",
+    "liberalize": "liberalise", "liberalized": "liberalised",
+    "decentralize": "decentralise", "decentralized": "decentralised",
+    "centralize": "centralise", "centralized": "centralised",
+    "digitize": "digitise", "digitized": "digitised",
+    "customize": "customise", "customized": "customised",
+    "optimize": "optimise", "optimized": "optimised",
+    "maximize": "maximise", "maximized": "maximised",
+    "minimize": "minimise", "minimized": "minimised",
+    "prioritize": "prioritise", "prioritized": "prioritised",
+    "behavior": "behaviour", "behaviors": "behaviours",
+    "catalog": "catalogue",
+    "dialog": "dialogue",
+    "judgment": "judgement",
+    "traveling": "travelling",
+    "counseling": "counselling",
+    "modeling": "modelling",
+    "enrollment": "enrolment",
+    "fulfillment": "fulfilment",
+    "installment": "instalment",
+    "neighborhood": "neighbourhood",
+    "acknowledgment": "acknowledgement",
+}
+
+_BRITISH_TO_AMERICAN = {v: k for k, v in _AMERICAN_TO_BRITISH.items()}
+
+
+def _is_american_british_pair(orig, suggestion):
+    o = orig.lower().strip()
+    s = suggestion.lower().strip()
+    if o in _AMERICAN_TO_BRITISH and _AMERICAN_TO_BRITISH[o] == s:
+        return True
+    if o in _BRITISH_TO_AMERICAN and _BRITISH_TO_AMERICAN[o] == s:
+        return True
+    if o.endswith("ize") and s == o[:-3] + "ise":
+        return True
+    if o.endswith("ization") and s == o[:-7] + "isation":
+        return True
+    if o.endswith("izing") and s == o[:-5] + "ising":
+        return True
+    if o.endswith("ized") and s == o[:-4] + "ised":
+        return True
+    if o.endswith("or") and s == o[:-2] + "our" and len(o) >= 6:
+        if o in _AMERICAN_TO_BRITISH:
+            return True
+    if o.endswith("ense") and s == o[:-4] + "ence":
+        return True
+    if o.endswith("og") and s == o + "ue":
+        return True
+    return False
 
 # Initialize OpenAI client
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -143,6 +263,13 @@ def repair_broken_words(text):
     for m in re.finditer(r"[A-Za-z]{5,}", text):
         words_in_doc.add(m.group().lower())
 
+    def _joined_is_valid(joined):
+        jl = joined.lower()
+        return (jl in common_words
+                or jl in words_in_doc
+                or _is_likely_word(joined, common_words)
+                or _is_valid_english_word(jl))
+
     def fix_line(line):
         tokens = re.split(r'(\s+)', line)
         result = []
@@ -154,27 +281,76 @@ def repair_broken_words(text):
                 i += 1
                 continue
 
+            _COMMON_SHORT_WORDS = {
+                "a","i","an","am","as","at","be","by","do","go","he","if","in",
+                "is","it","me","my","no","of","oh","ok","on","or","so","to","up",
+                "us","we","the","and","are","but","can","did","for","get","got",
+                "had","has","her","him","his","how","its","let","may","new","nor",
+                "not","now","odd","off","old","one","our","out","own","per","put",
+                "ran","run","saw","say","set","she","sit","six","ten","the","too",
+                "two","use","was","way","who","why","won","yet","you","log","move",
+                "check",
+            }
+
+            best_joined = tok
+            best_end = i + 1
+            j = i
+            accumulated = tok
+            while j + 2 < len(tokens):
+                if (tokens[j+1].strip() == ''
+                    and len(tokens[j+1]) <= 2
+                    and re.match(r'^[A-Za-z]+$', tokens[j+2])):
+                    candidate = accumulated + tokens[j+2]
+                    j += 2
+                    accumulated = candidate
+                    if _joined_is_valid(candidate):
+                        frags = []
+                        k = i
+                        while k <= j:
+                            if re.match(r'^[A-Za-z]+$', tokens[k]):
+                                frags.append(tokens[k])
+                            k += 1
+                        all_frags_words = all(_is_likely_word(f, common_words) for f in frags)
+                        all_common_short = all(f.lower() in _COMMON_SHORT_WORDS for f in frags)
+                        if all_common_short:
+                            pass
+                        elif not all_frags_words or len(frags) >= 3 or any(len(f) <= 2 and f.lower() not in _COMMON_SHORT_WORDS for f in frags):
+                            best_joined = candidate
+                            best_end = j + 1
+                else:
+                    break
+
+            if best_end > i + 1:
+                result.append(best_joined)
+                i = best_end
+                continue
+
             if (i + 2 < len(tokens)
                 and tokens[i+1].strip() == ''
-                and len(tokens[i+1]) == 1
+                and len(tokens[i+1]) <= 2
                 and re.match(r'^[A-Za-z]+$', tokens[i+2])):
 
                 frag1 = tok
                 frag2 = tokens[i+2]
                 joined = frag1 + frag2
 
-                f1_is_word = _is_likely_word(frag1, common_words)
-                f2_is_word = _is_likely_word(frag2, common_words)
-                joined_is_word = (joined.lower() in common_words
-                                  or joined.lower() in words_in_doc
-                                  or _is_likely_word(joined, common_words))
+                f1_is_word = _is_likely_word(frag1, common_words) or _is_valid_english_word(frag1)
+                f2_is_word = _is_likely_word(frag2, common_words) or _is_valid_english_word(frag2)
+                joined_is_word = _joined_is_valid(joined)
+
+                if f1_is_word and f2_is_word:
+                    result.append(tok)
+                    i += 1
+                    continue
 
                 should_join = False
-                if joined_is_word and not (f1_is_word and f2_is_word):
+                if joined_is_word and not f1_is_word and not f2_is_word:
                     should_join = True
                 if not f1_is_word and not f2_is_word and len(frag1) <= 4 and joined_is_word:
                     should_join = True
-                if not f1_is_word and len(frag1) <= 2 and joined_is_word:
+                if not f1_is_word and len(frag1) <= 2 and frag1.lower() not in _COMMON_SHORT_WORDS and joined_is_word:
+                    should_join = True
+                if len(frag1) == 1 and frag1.lower() not in _COMMON_SHORT_WORDS and joined_is_word:
                     should_join = True
 
                 if should_join:
@@ -492,6 +668,15 @@ Rules:
                 sugg_joined = "".join(words_sugg)
                 if joined_check == sugg_joined:
                     continue
+
+            if orig_collapsed.isalpha() and _is_valid_english_word(orig_collapsed):
+                continue
+
+            if orig.lower() in _get_common_words():
+                continue
+
+            if not _validate_spelling_finding(finding):
+                continue
 
         filtered.append(finding)
 
