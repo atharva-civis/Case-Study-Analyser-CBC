@@ -1263,7 +1263,7 @@ A faculty member is looking for case studies to integrate into their teaching pr
 {curriculum_section}
 
 === AGK CASE STUDY DATABASE ({case_count} cases) ===
-{case_database_text[:80000]}
+{case_database_text[:100000]}
 ===
 
 Based on the above, provide your recommendations as a JSON object with this structure:

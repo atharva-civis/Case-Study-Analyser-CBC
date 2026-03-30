@@ -63,8 +63,10 @@ def _resolve_igot_link(case_title):
         if normalize(db_title) == norm_title:
             return link
     for db_title, link in CASE_LINK_LOOKUP.items():
-        if norm_title in normalize(db_title) or normalize(db_title) in norm_title:
-            return link
+        norm_db = normalize(db_title)
+        if len(norm_title) > 15 and len(norm_db) > 15:
+            if norm_title in norm_db or norm_db in norm_title:
+                return link
     return ""
 
 # Custom CSS to improve the appearance
