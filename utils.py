@@ -1154,6 +1154,33 @@ def get_download_link(pdf_bytes, filename, text):
     return href
 
 
+def _extract_case_summary(case_text, max_chars=600):
+    if not case_text or len(case_text) < 50:
+        return ""
+    paragraphs = [p.strip() for p in case_text.split('\n') if len(p.strip()) > 40]
+    key_sentences = []
+    for p in paragraphs[:20]:
+        sentences = re.split(r'(?<=[.!?])\s+', p)
+        for s in sentences:
+            s = s.strip()
+            if len(s) > 30 and any(kw in s.lower() for kw in [
+                'challenge', 'initiative', 'implement', 'transform', 'innovat',
+                'leader', 'district', 'mission', 'project', 'programme', 'policy',
+                'reform', 'solution', 'strategy', 'impact', 'outcome', 'result',
+                'governance', 'citizen', 'community', 'development', 'digital',
+                'health', 'education', 'infrastructure', 'environment', 'technology'
+            ]):
+                key_sentences.append(s)
+            if len(' '.join(key_sentences)) > max_chars:
+                break
+        if len(' '.join(key_sentences)) > max_chars:
+            break
+    summary = ' '.join(key_sentences)[:max_chars]
+    if not summary and paragraphs:
+        summary = ' '.join(paragraphs[:3])[:max_chars]
+    return summary
+
+
 def load_case_database(file_path):
     import pandas as pd
 
@@ -1167,19 +1194,37 @@ def load_case_database(file_path):
     except Exception as e:
         return [], "", 0
 
+    col_names = list(df.columns)
+    has_case_text = len(col_names) >= 3
+    has_igot_link = len(col_names) >= 4
+
     cases = []
     for _, row in df.iterrows():
         title = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
         desc = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
+        case_text = str(row.iloc[2]).strip() if has_case_text and pd.notna(row.iloc[2]) else ""
+        igot_link = str(row.iloc[3]).strip() if has_igot_link and pd.notna(row.iloc[3]) else ""
         title = re.sub(r'\s+', ' ', title).strip()
         desc = re.sub(r'\s+', ' ', desc).strip()
+        if igot_link and not igot_link.startswith('http'):
+            igot_link = ""
         if title and desc:
-            cases.append({"title": title, "description": desc})
+            cases.append({
+                "title": title,
+                "description": desc,
+                "case_text": case_text,
+                "igot_link": igot_link
+            })
 
     case_count = len(cases)
     structured_text = ""
     for idx, case in enumerate(cases, 1):
-        structured_text += f"Case {idx}: {case['title']}\nDescription: {case['description']}\n\n"
+        entry = f"Case {idx}: {case['title']}\nDescription: {case['description']}\n"
+        if case['case_text']:
+            summary = _extract_case_summary(case['case_text'])
+            if summary:
+                entry += f"Key Details: {summary}\n"
+        structured_text += entry + "\n"
 
     return cases, structured_text, case_count
 
@@ -1204,9 +1249,9 @@ The faculty has uploaded their course outline above. Analyse it to identify modu
 Use this to provide module-level case suggestions in addition to overall recommendations.
 """
 
-    prompt = f"""You are CaseConnect, an AI-enabled case discovery tool for the Amrit Gyaan Kosh (AGK) repository of Indian governance case studies.
+    prompt = f"""You are CaseConnect, an expert AI case discovery tool for the Amrit Gyaan Kosh (AGK) repository of Indian governance case studies hosted on iGOT Karmayogi platform.
 
-A faculty member is looking for case studies to integrate into their teaching programme. Based on their inputs and the case database below, recommend the most relevant cases.
+A faculty member is looking for case studies to integrate into their teaching programme. You have deep knowledge of each case's content, characters, challenges, and outcomes from the database below. Use this knowledge to make highly specific, grounded recommendations.
 
 === FACULTY INPUTS ===
 1. Who are the learners? {learners}
@@ -1218,16 +1263,18 @@ A faculty member is looking for case studies to integrate into their teaching pr
 {curriculum_section}
 
 === AGK CASE STUDY DATABASE ({case_count} cases) ===
-{case_database_text[:45000]}
+{case_database_text[:80000]}
 ===
 
 Based on the above, provide your recommendations as a JSON object with this structure:
 {{
     "case_recommendations": [
         {{
-            "case_title": "Exact title from the database",
-            "why_it_fits": "2-3 sentence explanation of why this case is relevant to the faculty's needs",
-            "relevant_competencies": ["list of KCM competencies this case develops"],
+            "case_title": "Exact title from the database — must match precisely",
+            "why_it_fits": "3-4 sentence explanation that references SPECIFIC elements from the case: name the protagonist/decision-maker, describe the actual challenge they faced, explain what governance approach or intervention was used, and connect this directly to the faculty's stated learning objective and learner profile. Do NOT write generic statements like 'this case aligns with the competency'. Instead explain the concrete teaching value.",
+            "relevant_competencies": ["list of specific KCM competencies this case develops — explain the link"],
+            "key_themes": ["2-4 governance themes this case covers, e.g. 'Digital Governance', 'Public Health', 'Citizen Engagement', 'Data-Driven Decision Making'"],
+            "discussion_points": ["2-3 specific discussion questions for the classroom that draw from the actual case content, e.g. 'How did Sampath Kumar balance centralized monitoring with local autonomy in Meghalaya?'"],
             "suggested_duration": "recommended session duration for this case"
         }}
     ],
@@ -1237,25 +1284,29 @@ Based on the above, provide your recommendations as a JSON object with this stru
             "recommended_cases": [
                 {{
                     "case_title": "Case title",
-                    "relevance": "Why this case fits this module"
+                    "relevance": "Specific reason why this case fits this module, referencing actual case content"
                 }}
             ]
         }}
     ],
-    "teaching_strategy": "A paragraph suggesting how to best use these cases in the teaching programme, including session format, discussion approach, and sequencing advice.",
+    "teaching_strategy": "A detailed paragraph suggesting how to best use these cases in the teaching programme. Include specific session format (e.g. role-play, group discussion, case analysis), discussion approach, sequencing advice for using multiple cases, and how to connect the cases to the competency development goals.",
     "additional_notes": "Any additional observations or suggestions for the faculty."
 }}
 
 Rules:
 - Recommend 5-8 cases that best match the faculty's needs
-- ONLY recommend cases that exist in the database above — do not invent case titles
+- ONLY recommend cases that exist in the database above — do not invent or modify case titles
+- The case_title MUST be an exact match to a title in the database
+- In "why_it_fits", always reference the actual protagonist, situation, or outcome from the case — never write generic justifications
+- Discussion points must be grounded in the specific case content, not generic governance questions
+- Key themes should reflect the actual governance domains covered in the case
 - If a curriculum was uploaded, provide module_suggestions mapping cases to specific modules
 - If no curriculum was uploaded, return an empty list for module_suggestions
-- Be specific about why each case fits — reference the learner profile, competencies, and sector
-- Teaching strategy should be practical and actionable
-- Consider the session duration when making recommendations"""
+- Teaching strategy should be practical, actionable, and specific to the recommended cases
+- Consider the session duration when making recommendations
+- Prioritise cases that enable active learning (debate, role-play, problem-solving) over passive reading"""
 
-    result = call_openai_api(prompt, response_format="json_object", temperature=0.3)
+    result = call_openai_api(prompt, response_format="json_object", temperature=0.2)
 
     if isinstance(result, str):
         return {

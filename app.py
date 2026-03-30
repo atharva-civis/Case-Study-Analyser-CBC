@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 import os
+import re
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -31,13 +32,40 @@ st.set_page_config(
 )
 
 # Load case database for CaseConnect
-CASE_DB_PATH = "attached_assets/Amrit_Gyaan_Kosh___Case_Database_-_List_of_uploaded_cases_1774450085477.xlsx"
+CASE_DB_PATH = "attached_assets/Case_details_-_Sheet1_1774840900142.csv"
 @st.cache_data
 def get_case_database():
     cases, structured_text, case_count = load_case_database(CASE_DB_PATH)
-    return structured_text, case_count
+    link_lookup = {}
+    for c in cases:
+        if c.get("igot_link"):
+            link_lookup[c["title"].strip().lower()] = c["igot_link"]
+    return structured_text, case_count, link_lookup
 
-CASE_DATABASE_TEXT, CASE_COUNT = get_case_database()
+CASE_DATABASE_TEXT, CASE_COUNT, CASE_LINK_LOOKUP = get_case_database()
+
+def _resolve_igot_link(case_title):
+    import unicodedata
+    if not case_title:
+        return ""
+    def normalize(s):
+        s = unicodedata.normalize('NFKD', s).strip().lower()
+        s = re.sub(r'[\u2013\u2014\u2015\u2212]', '-', s)
+        s = re.sub(r'[\u2018\u2019\u201c\u201d]', "'", s)
+        s = re.sub(r'[^\w\s-]', '', s)
+        s = re.sub(r'\s+', ' ', s).strip()
+        return s
+
+    norm_title = normalize(case_title)
+    if case_title.strip().lower() in CASE_LINK_LOOKUP:
+        return CASE_LINK_LOOKUP[case_title.strip().lower()]
+    for db_title, link in CASE_LINK_LOOKUP.items():
+        if normalize(db_title) == norm_title:
+            return link
+    for db_title, link in CASE_LINK_LOOKUP.items():
+        if norm_title in normalize(db_title) or normalize(db_title) in norm_title:
+            return link
+    return ""
 
 # Custom CSS to improve the appearance
 st.markdown("""
@@ -1064,16 +1092,44 @@ elif st.session_state.get("active_tool") == "caseconnect" and st.session_state.l
         
         case_recs = results.get("case_recommendations", [])
         if case_recs:
+            import html as html_mod
             for i, rec in enumerate(case_recs, 1):
                 with st.expander(f"**{i}. {rec.get('case_title', 'Untitled')}**", expanded=(i <= 3)):
                     st.write(f"**Why it fits:** {rec.get('why_it_fits', '')}")
+
+                    themes = rec.get("key_themes", [])
+                    if isinstance(themes, str):
+                        themes = [themes]
+                    if themes:
+                        theme_badges = " ".join([f'<span class="score-badge" style="background-color:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;">{html_mod.escape(str(t))}</span>' for t in themes])
+                        st.markdown(f"**Key Themes:** {theme_badges}", unsafe_allow_html=True)
+
                     comps = rec.get("relevant_competencies", [])
+                    if isinstance(comps, str):
+                        comps = [comps]
                     if comps:
-                        comp_badges = " ".join([f'<span class="score-badge score-good">{c}</span>' for c in comps])
+                        comp_badges = " ".join([f'<span class="score-badge score-good">{html_mod.escape(str(c))}</span>' for c in comps])
                         st.markdown(f"**Relevant Competencies:** {comp_badges}", unsafe_allow_html=True)
+
+                    discussion = rec.get("discussion_points", [])
+                    if isinstance(discussion, str):
+                        discussion = [discussion]
+                    if discussion:
+                        st.write("**Discussion Points for Classroom:**")
+                        for dp_idx, dp in enumerate(discussion, 1):
+                            st.write(f"{dp_idx}. {dp}")
+
                     dur = rec.get("suggested_duration", "")
                     if dur:
                         st.write(f"**Suggested Duration:** {dur}")
+
+                    igot_link = _resolve_igot_link(rec.get("case_title", ""))
+                    if igot_link:
+                        safe_link = html_mod.escape(igot_link)
+                        st.markdown(
+                            f'<a href="{safe_link}" target="_blank" style="display:inline-block;background-color:#074fa5;color:white;padding:8px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;margin-top:8px;">Go to Case Study on iGOT ↗</a>',
+                            unsafe_allow_html=True
+                        )
         else:
             st.info("No specific case recommendations were generated. Try providing more details in the questionnaire.")
 
