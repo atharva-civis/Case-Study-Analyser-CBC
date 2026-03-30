@@ -606,7 +606,7 @@ with st.sidebar:
                         - Keywords should be simple, commonly used terms
                         """
                         
-                        tags_result = call_openai_api(sector_prompt, response_format="json_object")
+                        tags_result = call_openai_api(sector_prompt, response_format="json_object", temperature=0.1, seed=42)
                         if isinstance(tags_result, dict):
                             st.session_state.sector_tags = tags_result.get("sectors", [])
                             st.session_state.sector_subthemes = tags_result.get("subthemes", {})
@@ -883,7 +883,7 @@ with st.sidebar:
                             call_openai_api, kcm_prompt, "gpt-4o", "json_object", 0.1, 42
                         )
                         sector_future = executor.submit(
-                            call_openai_api, sector_prompt, "gpt-4o", "json_object", 0.5
+                            call_openai_api, sector_prompt, "gpt-4o", "json_object", 0.1, 42
                         )
 
                         try:
