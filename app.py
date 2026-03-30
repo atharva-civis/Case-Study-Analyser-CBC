@@ -613,175 +613,184 @@ with st.sidebar:
                             st.session_state.keywords = tags_result.get("keywords", [])
                 
                 if st.button("Perform Full Assessment"):
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
                     progress_text = st.empty()
                     progress_bar = st.progress(0)
                     
                     st.session_state.assessment_results = {}
                     st.session_state.writing_findings = []
                     
-                    # Count total criteria for progress tracking (add 1 for competency mapping)
-                    total_criteria = sum(len(ASSESSMENT_CRITERIA[area_id]) for area_id in ASSESSMENT_AREAS) + 1
-                    processed_criteria = 0
-                    
-                    # Process each assessment area
-                    for area_id, area_info in ASSESSMENT_AREAS.items():
-                        progress_text.text(f"Analyzing: {area_info['name']}")
-                        criteria = ASSESSMENT_CRITERIA[area_id]
-                        
-                        st.session_state.assessment_results[area_id] = {}
-                        
-                        # Process each criterion in this area (one at a time)
-                        for criterion_id, criterion_info in criteria.items():
-                            criterion_progress = f"Evaluating: {criterion_info['name']} ({processed_criteria+1}/{total_criteria})"
-                            progress_text.text(criterion_progress)
-                            
-                            is_informational = criterion_info.get('informational', False)
-                            max_score = criterion_info.get('max_score', 3) if not is_informational else 0
-                            scoring_logic = criterion_info.get('scoring_logic', '')
-                            agent_prompt = criterion_info.get('prompt', criterion_info['description'])
-                            requires_tn = criterion_info.get('requires_teaching_note', False)
-                            
-                            if is_informational:
-                                prompt = f"""
-                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
-                                
-                                Provide a detailed narrative analysis for the following criterion. Do NOT provide a score — this is an informational assessment only.
-                                
-                                **Criterion:** {criterion_info['name']}
-                                **Description:** {criterion_info['description']}
-                                **Analysis Task:** {agent_prompt}
-                                
-                                === CASE STUDY DOCUMENT ===
-                                {st.session_state.case_study_text[:5000]}
-                                
-                                === TEACHING NOTE DOCUMENT ===
-                                {st.session_state.teaching_note_text[:5000]}
-                                
-                                Provide your analysis in the following JSON structure:
-                                {{
-                                    "narrative": [a detailed narrative analysis addressing the criterion, as a single string],
-                                    "document_reference": [specific sections or content from BOTH documents that supports this analysis as a single string]
-                                }}
-                                
-                                {PROMPT_EXCLUSION_INSTRUCTIONS}
-                                
-                                Important:
-                                - Do NOT include a score — this criterion is informational only
-                                - Provide a thorough, well-structured narrative
-                                - Ensure narrative and document_reference are STRINGS, not lists
-                                """
-                            elif requires_tn or area_id == "area3":
-                                prompt = f"""
-                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
-                                
-                                Evaluate the alignment between the case study and its teaching note against this specific criterion:
-                                
-                                **Criterion:** {criterion_info['name']}
-                                **Description:** {criterion_info['description']}
-                                **Evaluation Task:** {agent_prompt}
-                                **Scoring Guide:** {scoring_logic}
-                                **Maximum Score:** {max_score}
-                                
-                                === CASE STUDY DOCUMENT ===
-                                {st.session_state.case_study_text[:5000]}
-                                
-                                === TEACHING NOTE DOCUMENT ===
-                                {st.session_state.teaching_note_text[:5000]}
-                                
-                                Provide an analysis with the following JSON structure:
-                                {{
-                                    "score": [a number between 0 and {max_score}, following the scoring guide above],
-                                    "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
-                                    "document_reference": [specific sections or content from BOTH documents that supports this assessment as a single string]
-                                }}
-                                
-                                {PROMPT_EXCLUSION_INSTRUCTIONS}
-                                
-                                Important:
-                                - The score MUST be an integer between 0 and {max_score}
-                                - Follow the scoring logic exactly: {scoring_logic}
-                                - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
-                                - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
-                                - Be deterministic: the same document should always receive the same score for this criterion
-                                - Provide specific evidence from BOTH the case study AND teaching note
-                                - Ensure reasoning and document_reference are STRINGS, not lists
-                                """
-                            else:
-                                prompt = f"""
-                                You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
-                                
-                                Evaluate the following case study document against this specific criterion:
-                                
-                                **Criterion:** {criterion_info['name']}
-                                **Description:** {criterion_info['description']}
-                                **Evaluation Task:** {agent_prompt}
-                                **Scoring Guide:** {scoring_logic}
-                                **Maximum Score:** {max_score}
-                                
-                                Case Study Document:
-                                {st.session_state.case_study_text[:6000]}
-                                
-                                Provide an analysis with the following JSON structure:
-                                {{
-                                    "score": [a number between 0 and {max_score}, following the scoring guide above],
-                                    "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
-                                    "document_reference": [specific sections or content from the document that supports this assessment as a single string]
-                                }}
-                                
-                                {PROMPT_EXCLUSION_INSTRUCTIONS}
-                                
-                                Important:
-                                - The score MUST be an integer between 0 and {max_score}
-                                - Follow the scoring logic exactly: {scoring_logic}
-                                - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
-                                - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
-                                - Be deterministic: the same document should always receive the same score for this criterion
-                                - Provide specific evidence from the document
-                                - Ensure reasoning and document_reference are STRINGS, not lists
-                                """
-                            
-                            with st.spinner(f"Analyzing {criterion_info['name']}..."):
-                                result = call_openai_api(prompt, response_format="json_object", temperature=0.1)
-                                
-                                if is_informational:
-                                    if isinstance(result.get("narrative"), list):
-                                        result["narrative"] = ". ".join(result["narrative"])
-                                    if not result.get("narrative"):
-                                        result["narrative"] = result.get("reasoning", "No analysis available.")
-                                    if isinstance(result.get("document_reference"), list):
-                                        result["document_reference"] = ". ".join(result["document_reference"])
-                                    result["score"] = 0
-                                    result["informational"] = True
-                                else:
-                                    if isinstance(result.get("reasoning"), list):
-                                        result["reasoning"] = ". ".join(result["reasoning"])
-                                    if isinstance(result.get("document_reference"), list):
-                                        result["document_reference"] = ". ".join(result["document_reference"])
-                                    
-                                    score = result.get("score", 0)
-                                    if isinstance(score, (int, float)):
-                                        result["score"] = min(max(0, int(score)), max_score)
-                                    else:
-                                        result["score"] = 0
-                                
-                                st.session_state.assessment_results[area_id][criterion_id] = result
-                            
-                            # Update progress
-                            processed_criteria += 1
-                            progress_bar.progress(processed_criteria / total_criteria)
-                    
-                    progress_text.text("Running Writing Quality Analysis...")
-                    with st.spinner("Analysing full document for writing issues..."):
-                        writing_findings = analyze_writing_quality_chunked(
-                            st.session_state.case_study_text,
-                            exclusion_instructions=PROMPT_EXCLUSION_INSTRUCTIONS
-                        )
-                        st.session_state.writing_findings = writing_findings
+                    total_steps = len(ASSESSMENT_AREAS) + 3
+                    completed_steps = 0
 
-                    # Generate KCM Competency Mapping
-                    progress_text.text("Mapping Karmayogi Competencies...")
-                    from assessment_criteria import KCM_COMPETENCIES
+                    case_text = st.session_state.case_study_text
+                    tn_text = st.session_state.teaching_note_text
+
+                    def _build_criterion_prompt(area_id, criterion_info):
+                        is_informational = criterion_info.get('informational', False)
+                        max_score = criterion_info.get('max_score', 3) if not is_informational else 0
+                        scoring_logic = criterion_info.get('scoring_logic', '')
+                        agent_prompt = criterion_info.get('prompt', criterion_info['description'])
+                        requires_tn = criterion_info.get('requires_teaching_note', False)
+                        
+                        if is_informational:
+                            return f"""
+                            You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                            
+                            Provide a detailed narrative analysis for the following criterion. Do NOT provide a score — this is an informational assessment only.
+                            
+                            **Criterion:** {criterion_info['name']}
+                            **Description:** {criterion_info['description']}
+                            **Analysis Task:** {agent_prompt}
+                            
+                            === CASE STUDY DOCUMENT ===
+                            {case_text[:5000]}
+                            
+                            === TEACHING NOTE DOCUMENT ===
+                            {tn_text[:5000]}
+                            
+                            Provide your analysis in the following JSON structure:
+                            {{
+                                "narrative": [a detailed narrative analysis addressing the criterion, as a single string],
+                                "document_reference": [specific sections or content from BOTH documents that supports this analysis as a single string]
+                            }}
+                            
+                            {PROMPT_EXCLUSION_INSTRUCTIONS}
+                            
+                            Important:
+                            - Do NOT include a score — this criterion is informational only
+                            - Provide a thorough, well-structured narrative
+                            - Ensure narrative and document_reference are STRINGS, not lists
+                            """
+                        elif requires_tn or area_id == "area3":
+                            return f"""
+                            You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                            
+                            Evaluate the alignment between the case study and its teaching note against this specific criterion:
+                            
+                            **Criterion:** {criterion_info['name']}
+                            **Description:** {criterion_info['description']}
+                            **Evaluation Task:** {agent_prompt}
+                            **Scoring Guide:** {scoring_logic}
+                            **Maximum Score:** {max_score}
+                            
+                            === CASE STUDY DOCUMENT ===
+                            {case_text[:5000]}
+                            
+                            === TEACHING NOTE DOCUMENT ===
+                            {tn_text[:5000]}
+                            
+                            Provide an analysis with the following JSON structure:
+                            {{
+                                "score": [a number between 0 and {max_score}, following the scoring guide above],
+                                "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
+                                "document_reference": [specific sections or content from BOTH documents that supports this assessment as a single string]
+                            }}
+                            
+                            {PROMPT_EXCLUSION_INSTRUCTIONS}
+                            
+                            Important:
+                            - The score MUST be an integer between 0 and {max_score}
+                            - Follow the scoring logic exactly: {scoring_logic}
+                            - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
+                            - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
+                            - Be deterministic: the same document should always receive the same score for this criterion
+                            - Provide specific evidence from BOTH the case study AND teaching note
+                            - Ensure reasoning and document_reference are STRINGS, not lists
+                            """
+                        else:
+                            return f"""
+                            You are a case study evaluation expert using the CBC-India AGK Case Study Review Rubric.
+                            
+                            Evaluate the following case study document against this specific criterion:
+                            
+                            **Criterion:** {criterion_info['name']}
+                            **Description:** {criterion_info['description']}
+                            **Evaluation Task:** {agent_prompt}
+                            **Scoring Guide:** {scoring_logic}
+                            **Maximum Score:** {max_score}
+                            
+                            Case Study Document:
+                            {case_text[:6000]}
+                            
+                            Provide an analysis with the following JSON structure:
+                            {{
+                                "score": [a number between 0 and {max_score}, following the scoring guide above],
+                                "reasoning": [detailed explanation of why this score was given, based on the scoring logic, as a single string],
+                                "document_reference": [specific sections or content from the document that supports this assessment as a single string]
+                            }}
+                            
+                            {PROMPT_EXCLUSION_INSTRUCTIONS}
+                            
+                            Important:
+                            - The score MUST be an integer between 0 and {max_score}
+                            - Follow the scoring logic exactly: {scoring_logic}
+                            - Apply the rubric strictly and consistently — use the scoring guide as the sole basis for the score
+                            - Do NOT give benefit of the doubt — if evidence is absent or ambiguous, score lower
+                            - Be deterministic: the same document should always receive the same score for this criterion
+                            - Provide specific evidence from the document
+                            - Ensure reasoning and document_reference are STRINGS, not lists
+                            """
+
+                    def _evaluate_criterion(area_id, criterion_id, criterion_info):
+                        prompt = _build_criterion_prompt(area_id, criterion_info)
+                        result = call_openai_api(prompt, response_format="json_object", temperature=0.1, seed=42)
+                        return area_id, criterion_id, criterion_info, result
+
+                    def _process_result(area_id, criterion_id, criterion_info, result):
+                        is_informational = criterion_info.get('informational', False)
+                        max_score = criterion_info.get('max_score', 3) if not is_informational else 0
+                        if is_informational:
+                            if isinstance(result.get("narrative"), list):
+                                result["narrative"] = ". ".join(result["narrative"])
+                            if not result.get("narrative"):
+                                result["narrative"] = result.get("reasoning", "No analysis available.")
+                            if isinstance(result.get("document_reference"), list):
+                                result["document_reference"] = ". ".join(result["document_reference"])
+                            result["score"] = 0
+                            result["informational"] = True
+                        else:
+                            if isinstance(result.get("reasoning"), list):
+                                result["reasoning"] = ". ".join(result["reasoning"])
+                            if isinstance(result.get("document_reference"), list):
+                                result["document_reference"] = ". ".join(result["document_reference"])
+                            score = result.get("score", 0)
+                            if isinstance(score, (int, float)):
+                                result["score"] = min(max(0, int(score)), max_score)
+                            else:
+                                result["score"] = 0
+                        return result
+
+                    for area_id, area_info in ASSESSMENT_AREAS.items():
+                        progress_text.text(f"Analyzing: {area_info['name']} (parallel)...")
+                        criteria = ASSESSMENT_CRITERIA[area_id]
+                        st.session_state.assessment_results[area_id] = {}
+
+                        with ThreadPoolExecutor(max_workers=len(criteria)) as executor:
+                            futures = {
+                                executor.submit(_evaluate_criterion, area_id, cid, cinfo): (cid, cinfo)
+                                for cid, cinfo in criteria.items()
+                            }
+                            for future in as_completed(futures):
+                                try:
+                                    a_id, c_id, c_info, raw_result = future.result()
+                                    processed = _process_result(a_id, c_id, c_info, raw_result)
+                                    st.session_state.assessment_results[a_id][c_id] = processed
+                                except Exception as e:
+                                    cid_fallback, cinfo_fallback = futures[future]
+                                    st.session_state.assessment_results[area_id][cid_fallback] = {
+                                        "score": 0, "reasoning": f"Error: {str(e)}", "document_reference": "Error"
+                                    }
+
+                        completed_steps += 1
+                        progress_bar.progress(completed_steps / total_steps)
+
+                    progress_text.text("Running Writing Quality Analysis, KCM Mapping & Sector Tags (parallel)...")
                     
+                    writing_future = None
+                    kcm_future = None
+                    sector_future = None
+
                     kcm_prompt = f"""
                     You are an expert in the Karmayogi Competency Model (KCM) used by the Government of India for civil service capacity building.
                     
@@ -809,7 +818,7 @@ with st.sidebar:
                     - Service Excellence: Standard Setting, Efficiency, Continuous Improvement, Benchmarking
                     
                     === CASE STUDY ===
-                    {st.session_state.case_study_text[:5000]}
+                    {case_text[:5000]}
                     
                     {PROMPT_EXCLUSION_INSTRUCTIONS}
                     
@@ -837,47 +846,74 @@ with st.sidebar:
                     - Ensure all values are strings.
                     """
                     
-                    with st.spinner("Mapping Karmayogi Competencies..."):
-                        competency_result = call_openai_api(kcm_prompt, response_format="json_object")
-                        st.session_state.competency_mapping = competency_result
+                    sector_prompt = f"""
+                    You are an expert at classifying case studies by sector, sub-theme, and keywords.
                     
-                    processed_criteria += 1
-                    progress_bar.progress(processed_criteria / total_criteria)
+                    Based on the case study below, identify the applicable sectors, sub-themes, and keywords.
                     
-                    progress_text.text("Generating sector tags and keywords...")
-                    with st.spinner("Generating sector tags and keywords..."):
-                        sector_prompt = f"""
-                        You are an expert at classifying case studies by sector, sub-theme, and keywords.
-                        
-                        Based on the case study below, identify the applicable sectors, sub-themes, and keywords.
-                        
-                        === AVAILABLE SECTORS AND SUB-THEMES ===
-                        {json.dumps(SECTOR_MAPPING, indent=2)}
-                        
-                        === CASE STUDY ===
-                        {st.session_state.case_study_text[:5000]}
-                        
-                        {PROMPT_EXCLUSION_INSTRUCTIONS}
-                        
-                        Provide your analysis in the following JSON structure:
-                        {{
-                            "sectors": ["sector1", "sector2"],
-                            "subthemes": {{"sector1": ["subtheme1", "subtheme2"], "sector2": ["subtheme1"]}},
-                            "keywords": ["keyword1", "keyword2", "keyword3"]
-                        }}
-                        
-                        Important:
-                        - Select ONLY sectors from the provided SECTOR_MAPPING list
-                        - For each selected sector, identify relevant sub-themes from that sector's sub-theme list
-                        - Generate 5-10 keywords that a general public audience would use to search for this case study
-                        - Keywords should be simple, commonly used terms
-                        """
-                        
-                        tags_result = call_openai_api(sector_prompt, response_format="json_object")
-                        if isinstance(tags_result, dict):
-                            st.session_state.sector_tags = tags_result.get("sectors", [])
-                            st.session_state.sector_subthemes = tags_result.get("subthemes", {})
-                            st.session_state.keywords = tags_result.get("keywords", [])
+                    === AVAILABLE SECTORS AND SUB-THEMES ===
+                    {json.dumps(SECTOR_MAPPING, indent=2)}
+                    
+                    === CASE STUDY ===
+                    {case_text[:5000]}
+                    
+                    {PROMPT_EXCLUSION_INSTRUCTIONS}
+                    
+                    Provide your analysis in the following JSON structure:
+                    {{
+                        "sectors": ["sector1", "sector2"],
+                        "subthemes": {{"sector1": ["subtheme1", "subtheme2"], "sector2": ["subtheme1"]}},
+                        "keywords": ["keyword1", "keyword2", "keyword3"]
+                    }}
+                    
+                    Important:
+                    - Select ONLY sectors from the provided SECTOR_MAPPING list
+                    - For each selected sector, identify relevant sub-themes from that sector's sub-theme list
+                    - Generate 5-10 keywords that a general public audience would use to search for this case study
+                    - Keywords should be simple, commonly used terms
+                    """
+
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        writing_future = executor.submit(
+                            analyze_writing_quality_chunked,
+                            case_text,
+                            exclusion_instructions=PROMPT_EXCLUSION_INSTRUCTIONS
+                        )
+                        kcm_future = executor.submit(
+                            call_openai_api, kcm_prompt, "gpt-4o", "json_object", 0.1, 42
+                        )
+                        sector_future = executor.submit(
+                            call_openai_api, sector_prompt, "gpt-4o", "json_object", 0.5
+                        )
+
+                        try:
+                            st.session_state.writing_findings = writing_future.result()
+                        except Exception as e:
+                            st.session_state.writing_findings = []
+                        completed_steps += 1
+                        progress_bar.progress(completed_steps / total_steps)
+                        progress_text.text("Finalising competency mapping and sector tags...")
+
+                        try:
+                            competency_result = kcm_future.result()
+                            st.session_state.competency_mapping = competency_result
+                        except Exception:
+                            st.session_state.competency_mapping = {}
+                        completed_steps += 1
+                        progress_bar.progress(completed_steps / total_steps)
+
+                        try:
+                            tags_result = sector_future.result()
+                            if isinstance(tags_result, dict):
+                                st.session_state.sector_tags = tags_result.get("sectors", [])
+                                st.session_state.sector_subthemes = tags_result.get("subthemes", {})
+                                st.session_state.keywords = tags_result.get("keywords", [])
+                        except Exception:
+                            st.session_state.sector_tags = []
+                            st.session_state.sector_subthemes = {}
+                            st.session_state.keywords = []
+                        completed_steps += 1
+                        progress_bar.progress(completed_steps / total_steps)
                     
                     # Calculate weighted scores after assessment
                     st.session_state.weighted_scores = calculate_weighted_score(st.session_state.assessment_results)

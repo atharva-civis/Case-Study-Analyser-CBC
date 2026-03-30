@@ -17,8 +17,190 @@ import numpy as np
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
+_COMMON_WORDS = None
+
+def _get_common_words():
+    global _COMMON_WORDS
+    if _COMMON_WORDS is not None:
+        return _COMMON_WORDS
+    _COMMON_WORDS = {
+        "the","of","and","to","in","a","is","that","for","it","was","on","are","as","with",
+        "his","they","be","at","one","have","this","from","or","had","by","not","but","what",
+        "all","were","we","when","your","can","said","there","each","which","she","do","how",
+        "their","if","will","up","other","about","out","many","then","them","these","so",
+        "some","her","would","make","like","has","him","into","time","very","an","been","no",
+        "its","who","did","get","may","than","now","people","my","over","such","our","also",
+        "new","after","us","use","two","way","well","state","more","most","only","any","work",
+        "first","just","where","case","back","much","go","good","give","could","study","own",
+        "take","come","made","find","here","thing","long","still","between","right","too","old",
+        "tell","year","public","before","should","because","through","same","part","last","while",
+        "under","never","great","know","must","those","need","house","government","service",
+        "shall","country","hand","school","national","world","high","every","system","area",
+        "i","me","he","she","it","we","you","am","are","is","was","were","be","been","being",
+        "have","has","had","do","does","did","will","would","shall","should","may","might",
+        "can","could","must","ought","need","dare","used","going","being","having","doing",
+        "able","go","see","say","get","put","set","run","let","try","ask","own","end","big",
+        "far","old","low","few","off","day","man","way","eye","boy","did","got","cut","lot",
+        "bit","age","top","war","god","per","act","law","bed","key","tax","eat","car","air",
+        "job","art","cup","oil","sat","dog","led","red","hot","bad","six","sea","add","won",
+        "nor","due","pay","met","arm","nor","yet","hit","sit","buy","die","lay","fit","ten",
+        "map","raw","aim","aid","gap","era","via","tip","gas",
+        "in","on","at","to","by","up","an","or","no","so","if","as","do","my","he","we",
+        "built","structure","plan","down","left","full","life","door","real","show",
+        "keep","turn","move","point","four","five","open","city","land","form","line",
+        "body","small","large","number","change","place","found","head","page","kind",
+        "food","water","stand","call","look","think","came","again","help","play","never",
+        "three","seven","eight","nine","once","both","next","face","left","town","even",
+        "free","sure","half","hold","near","side","took","above","along","class","close",
+        "name","best","upon","past","done","gone","less","single","second","third",
+        "start","force","power","total","clear","round","order","given","data","level",
+        "local","model","human","field","board","court","chief","legal","urban","rural",
+        "civil","cost","fund","growth","rate","cent","plan","phase","step","role",
+        "rule","term","type","unit","fact","view","rest","sent","rise","note","lead",
+        "base","wide","deep","care","mark","sure","size","test","post","bank","rate",
+        "risk","sale","loss","link","firm","loan","deal","bond","debt","flow","mode",
+        "core","code","file","tool","sign","rank","poll","seat","vote","bill","item",
+        "told","felt","left","kept","gave","sent","went","held","took","knew","seen",
+    }
+    _COMMON_WORDS |= {
+        "governance","administration","implementation","organisation","organization",
+        "infrastructure","development","management","government","department",
+        "initiative","institutional","accountability","transparency","competency",
+        "competencies","efficiency","effectiveness","sustainability","stakeholder",
+        "stakeholders","collaboration","innovation","technology","digitization",
+        "digitisation","digitalisation","digitalization","bureaucratic","bureaucracy",
+        "decentralisation","decentralization","empowerment","transformation",
+        "modernisation","modernization","rehabilitation","procurement","expenditure",
+        "jurisdiction","administrative","commissioner","municipality","municipal",
+        "panchayat","surveillance","enforcement","compliance","regulation",
+        "regulatory","legislature","legislative","parliamentary","constitutional",
+        "resolution","intervention","mechanism","framework","programme","program",
+        "evaluation","assessment","achievement","performance","improvement",
+        "enhancement","recommendation","documentation","communication","information",
+        "distribution","contribution","participation","representation","recognition",
+        "integration","preparation","investigation","consideration","notification",
+        "application","examination","determination","discrimination","authorization",
+        "certification","classification","specification","identification","demonstration",
+        "accommodation","approximation","characterisation","characterization",
+        "privatisation","privatization","liberalisation","liberalization",
+        "commercialisation","commercialization","industrialisation","industrialization",
+        "rationalisation","rationalization","standardisation","standardization",
+        "centralisation","centralization","marginalisation","marginalization",
+        "operationalisation","operationalization","professionalisation",
+        "agriculture","agricultural","education","educational","environment",
+        "environmental","population","technological","geographical","geographical",
+        "significant","significance","opportunity","opportunities","responsibility",
+        "responsibilities","understanding","approximately","comprehensive",
+        "establishment","particularly","international","independently","unfortunately",
+        "subsequently","simultaneously","infrastructure","characteristics","consequently",
+        "transportation","communication","communications","pharmaceutical","manufacturing",
+        "predominantly","circumstances","transformation","transformative","supplementary",
+        "approximately","extraordinary","unprecedented","disadvantaged","disproportionate",
+        "acknowledgement","acknowledgment","neighbourhood","neighborhood",
+        "programme","programmes","analyse","analysed","analysing","organisation",
+        "organisations","organised","organising","recognised","recognising",
+        "behaviour","behaviours","favour","favoured","labour","colour","honour",
+        "centre","centres","defence","licence","offence","practice","practise",
+        "catalogue","dialogue","cheque","grey","judgement","manoeuvre","plough",
+        "programme","sceptical","specialise","specialised","travelling","counselling",
+        "modelling","cancellation","jewellery","skilful","wilful","enrolment",
+        "fulfilment","instalment","focussed","focussing",
+        "accountability","egovernance","e-governance","mgovernance","m-governance",
+        "karmayogi","igot","swachh","bharat","pradhan","mantri","niti","aayog",
+        "ayushman","ujjwala","panchayati","seva","yojana","andolan","swaraj",
+        "adhikari","sabha","samiti","zila","parishad","tehsil","taluka","nagar",
+        "nigam","palika","vidhan","rajya","lok","vibhag","mandal","kshetra",
+        "mission","national","district","collector","magistrate","commissioner",
+        "secretary","directorate","secretariat","ministry","division","bureau",
+        "tribunal","appellate","ombudsman","vigilance","comptroller","auditor",
+        "exchequer","gazette","notification","ordinance","statute","amendment",
+    }
+    return _COMMON_WORDS
+
+
+def _is_likely_word(token, common_words):
+    t = token.lower()
+    if len(t) <= 1:
+        return True
+    if t in common_words:
+        return True
+    if t.endswith("'s") and t[:-2] in common_words:
+        return True
+    for suffix in ("ed","ing","tion","sion","ment","ness","ity","ise","ize","ised","ized",
+                    "ising","izing","able","ible","ful","less","ous","ive","al","ly","er","est","s","es"):
+        if not t.endswith(suffix):
+            continue
+        stem = t[:-len(suffix)]
+        if len(stem) >= 3 and stem in common_words:
+            return True
+    return False
+
+
+def repair_broken_words(text):
+    common_words = _get_common_words()
+
+    words_in_doc = set()
+    for m in re.finditer(r"[A-Za-z]{5,}", text):
+        words_in_doc.add(m.group().lower())
+
+    def fix_line(line):
+        tokens = re.split(r'(\s+)', line)
+        result = []
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if not re.match(r'^[A-Za-z]+$', tok) or len(tok) == 0:
+                result.append(tok)
+                i += 1
+                continue
+
+            if (i + 2 < len(tokens)
+                and tokens[i+1].strip() == ''
+                and len(tokens[i+1]) == 1
+                and re.match(r'^[A-Za-z]+$', tokens[i+2])):
+
+                frag1 = tok
+                frag2 = tokens[i+2]
+                joined = frag1 + frag2
+
+                f1_is_word = _is_likely_word(frag1, common_words)
+                f2_is_word = _is_likely_word(frag2, common_words)
+                joined_is_word = (joined.lower() in common_words
+                                  or joined.lower() in words_in_doc
+                                  or _is_likely_word(joined, common_words))
+
+                should_join = False
+                if joined_is_word and not (f1_is_word and f2_is_word):
+                    should_join = True
+                if not f1_is_word and not f2_is_word and len(frag1) <= 4 and joined_is_word:
+                    should_join = True
+                if not f1_is_word and len(frag1) <= 2 and joined_is_word:
+                    should_join = True
+
+                if should_join:
+                    result.append(joined)
+                    i += 3
+                    continue
+
+            result.append(tok)
+            i += 1
+        return ''.join(result)
+
+    lines = text.split('\n')
+    repaired = [fix_line(line) for line in lines]
+
+    text = '\n'.join(repaired)
+
+    text = text.replace('ﬃ', 'ffi')
+    text = text.replace('ﬄ', 'ffl')
+    text = text.replace('ﬁ', 'fi')
+    text = text.replace('ﬂ', 'fl')
+    text = text.replace('ﬀ', 'ff')
+
+    return text
+
+
 def normalize_extracted_text(text):
-    import re
     text = re.sub(r'[ \t]+', ' ', text)
     text = re.sub(r'(\w) +- +(\w)', r'\1-\2', text)
     text = re.sub(r'(\w) +-(\w)', r'\1-\2', text)
@@ -34,6 +216,7 @@ def normalize_extracted_text(text):
     lines = text.split('\n')
     cleaned_lines = [line.strip() for line in lines]
     text = '\n'.join(cleaned_lines)
+    text = repair_broken_words(text)
     return text
 
 
@@ -93,7 +276,7 @@ def extract_text_from_docx(docx_file):
     
     return text
 
-def call_openai_api(prompt, model="gpt-4o", response_format=None, temperature=0.5):
+def call_openai_api(prompt, model="gpt-4o", response_format=None, temperature=0.5, seed=None):
     """
     Call the OpenAI API with the given prompt.
     
@@ -102,6 +285,7 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None, temperature=0.
         model (str): The OpenAI model to use
         response_format (str, optional): Format for response (e.g., "json_object")
         temperature (float): Temperature for response generation (default 0.5)
+        seed (int, optional): Fixed seed for deterministic output
         
     Returns:
         The content of the API response
@@ -112,6 +296,8 @@ def call_openai_api(prompt, model="gpt-4o", response_format=None, temperature=0.
         kwargs = {}
         if response_format == "json_object":
             kwargs["response_format"] = {"type": "json_object"}
+        if seed is not None:
+            kwargs["seed"] = seed
         
         response = openai_client.chat.completions.create(
             model=model,
@@ -202,6 +388,16 @@ CHECK FOR THESE SPECIFIC ISSUE TYPES:
 
 {exclusion_instructions}
 
+CRITICAL — PDF EXTRACTION ARTIFACT RULES (DO NOT VIOLATE):
+This text was extracted from a PDF document. The extraction process sometimes introduces artefacts that are NOT present in the original document. You MUST NOT flag any of the following as errors:
+- Words that appear broken with extra spaces (e.g., "gover nance", "admini stration", "imple mentation", "organi sation") — these are extraction artefacts where the original PDF has the word correctly spelled
+- Spaces around hyphens or dashes (e.g., "e -governance" instead of "e-governance")
+- Ligature splitting (e.g., "ﬁ" becoming "fi", "ﬂ" becoming "fl")
+- Irregular whitespace, missing spaces between words, or extra spaces within words
+- Any "spelling error" where the suggestion is simply the same letters with different spacing
+- Any finding where removing all spaces from the original and the suggestion produces the same text
+If a word looks misspelled but could be a PDF extraction artefact (broken word), DO NOT flag it. When in doubt, DO NOT flag it.
+
 === TEXT TO ANALYSE ===
 {chunk_text}
 
@@ -225,10 +421,9 @@ Rules:
 - severity: High = clear error (spelling, grammar), Medium = tense inconsistency or significant redundancy, Low = style improvement or minor redundancy
 - Do NOT flag proper nouns, place names, organisation names, or technical terms
 - Do NOT flag direct quotes from other sources
-- IMPORTANT: This text was extracted from a PDF. Do NOT flag any spacing-related issues such as extra spaces around hyphens, spaces before punctuation, or irregular whitespace — these are PDF extraction artifacts, NOT errors in the original document. Focus exclusively on genuine content-level spelling, grammar, tense, redundancy, and sentence structure issues.
 - Be conservative — when in doubt, do NOT flag it"""
 
-        result = call_openai_api(prompt, response_format="json_object")
+        result = call_openai_api(prompt, response_format="json_object", temperature=0.1, seed=42)
         findings = []
         if isinstance(result, dict):
             chunk_findings = result.get("findings", [])
@@ -263,16 +458,41 @@ Rules:
             seen_texts.add(orig)
             deduplicated.append(finding)
 
+    def _normalize_for_compare(s):
+        s = s.replace(" ", "").replace("\u00a0", "").replace("\u200b", "")
+        s = s.replace("\u2013", "-").replace("\u2014", "-").replace("\u2015", "-")
+        s = s.replace("\u2018", "'").replace("\u2019", "'").replace("\u201c", '"').replace("\u201d", '"')
+        return s.lower()
+
     filtered = []
     for finding in deduplicated:
         orig = finding.get("original_text", "").strip()
         suggestion = finding.get("suggestion", "").strip()
-        if orig.replace(" ", "").replace("\u00a0", "").lower() == suggestion.replace(" ", "").replace("\u00a0", "").lower() and orig != suggestion:
+
+        if _normalize_for_compare(orig) == _normalize_for_compare(suggestion) and orig != suggestion:
             continue
+
+        orig_collapsed = re.sub(r'\s+', '', orig).lower()
+        sugg_collapsed = re.sub(r'\s+', '', suggestion).lower()
+        if orig_collapsed == sugg_collapsed and orig != suggestion:
+            continue
+
         orig_no_hyphspace = orig.replace(" -", "-").replace("- ", "-").replace(" ", "")
         sugg_no_hyphspace = suggestion.replace(" -", "-").replace("- ", "-").replace(" ", "")
         if orig_no_hyphspace.lower() == sugg_no_hyphspace.lower() and orig != suggestion:
             continue
+
+        if finding.get("type") == "Spelling":
+            if orig_collapsed == sugg_collapsed:
+                continue
+            words_orig = orig.lower().split()
+            words_sugg = suggestion.lower().split()
+            if len(words_orig) > len(words_sugg) and len(words_sugg) >= 1:
+                joined_check = "".join(words_orig)
+                sugg_joined = "".join(words_sugg)
+                if joined_check == sugg_joined:
+                    continue
+
         filtered.append(finding)
 
     type_order = {"High": 0, "Medium": 1, "Low": 2}
