@@ -531,22 +531,42 @@ with st.sidebar:
             if saved_cases:
                 for sc in saved_cases[:10]:
                     label = (sc.title or "Untitled") + f"  ·  {sc.case_type or '?'}"
-                    if st.button(label, key=f"load_gen_{sc.id}", use_container_width=True):
-                        loaded = get_generated_case(sc.id, st.session_state.user_id)
-                        if loaded:
-                            st.session_state.gen_case_id = loaded["id"]
-                            st.session_state.gen_case_type = loaded["case_type"]
-                            st.session_state.gen_metadata = loaded["metadata"]
-                            st.session_state.gen_intent = loaded["intent"]
-                            st.session_state.gen_sources = loaded["sources"]
-                            st.session_state.gen_processed = loaded["processed"]
-                            st.session_state.gen_sections = loaded["sections"]
-                            st.session_state.gen_compliance = loaded["compliance"]
-                            st.session_state.gen_teaching_note = loaded["teaching_note"]
-                            st.session_state.gen_kcm_mapping = loaded.get("kcm_mapping") or {}
-                            st.session_state.gen_final_documents = loaded.get("final_documents") or {}
-                            st.session_state.gen_step = 6 if loaded["sections"] else 5 if loaded["processed"] else 4
-                            st.rerun()
+                    row = st.columns([5, 1])
+                    with row[0]:
+                        if st.button(label, key=f"load_gen_{sc.id}", use_container_width=True):
+                            loaded = get_generated_case(sc.id, st.session_state.user_id)
+                            if loaded:
+                                st.session_state.gen_case_id = loaded["id"]
+                                st.session_state.gen_case_type = loaded["case_type"]
+                                st.session_state.gen_metadata = loaded["metadata"]
+                                st.session_state.gen_intent = loaded["intent"]
+                                st.session_state.gen_sources = loaded["sources"]
+                                st.session_state.gen_processed = loaded["processed"]
+                                st.session_state.gen_sections = loaded["sections"]
+                                st.session_state.gen_compliance = loaded["compliance"]
+                                st.session_state.gen_teaching_note = loaded["teaching_note"]
+                                st.session_state.gen_kcm_mapping = loaded.get("kcm_mapping") or {}
+                                st.session_state.gen_final_documents = loaded.get("final_documents") or {}
+                                st.session_state.gen_step = 6 if loaded["sections"] else 5 if loaded["processed"] else 4
+                                st.rerun()
+                    with row[1]:
+                        confirm_key = f"confirm_del_gen_{sc.id}"
+                        if st.session_state.get(confirm_key):
+                            if st.button("✓", key=f"do_del_gen_{sc.id}", help="Confirm delete", use_container_width=True):
+                                try:
+                                    if delete_generated_case(sc.id, st.session_state.user_id):
+                                        if st.session_state.get("gen_case_id") == sc.id:
+                                            st.session_state.gen_case_id = None
+                                        st.session_state[confirm_key] = False
+                                        st.rerun()
+                                    else:
+                                        st.warning("Could not delete (no permission or already removed).")
+                                except Exception as e:
+                                    st.error(f"Delete failed: {e}")
+                        else:
+                            if st.button("🗑", key=f"ask_del_gen_{sc.id}", help="Delete this draft", use_container_width=True):
+                                st.session_state[confirm_key] = True
+                                st.rerun()
             else:
                 st.caption("No drafts saved yet.")
 
@@ -1924,8 +1944,13 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                             _gen_persist()
                             st.success("Saved.")
 
-        # Gate progression: every defined section must have non-empty text.
-        required_sids = [sid for sid, _ in sections_meta]
+        # Gate progression: every REQUIRED section must have non-empty text.
+        # Sections whose label includes "(Optional)" — currently the
+        # Decision-Forcing epilogue — do not block progression.
+        def _is_optional(sname):
+            return "(optional)" in (sname or "").lower()
+
+        required_sids = [sid for sid, sname in sections_meta if not _is_optional(sname)]
         sections_complete = all(
             (st.session_state.gen_sections.get(sid) or {}).get("text", "").strip()
             for sid in required_sids
@@ -1933,9 +1958,10 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
         if not sections_complete:
             missing = [
                 sname for sid, sname in sections_meta
-                if not (st.session_state.gen_sections.get(sid) or {}).get("text", "").strip()
+                if not _is_optional(sname)
+                and not (st.session_state.gen_sections.get(sid) or {}).get("text", "").strip()
             ]
-            st.warning("Generate every section before continuing. Outstanding: " + ", ".join(missing))
+            st.warning("Generate every required section before continuing. Outstanding: " + ", ".join(missing))
         _gen_nav(prev_to=5, next_to=7 if sections_complete else None,
                  next_label="Continue to compliance review →")
 
