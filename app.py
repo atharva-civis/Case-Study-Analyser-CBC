@@ -11,7 +11,7 @@ from io import BytesIO
 import PyPDF2
 import docx
 from datetime import datetime, timedelta
-from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database, run_caseconnect_analysis
+from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database, run_caseconnect_analysis, repair_broken_words
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS, KCM_COMPETENCIES
 from case_generator import (
     CASE_TYPES,
@@ -30,6 +30,7 @@ from case_generator import (
 )
 import base64
 import urllib.request
+import urllib.error
 from urllib.parse import urlparse
 from db_models import (
     initialize_session_state,
@@ -1493,6 +1494,13 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                             text = raw.decode("utf-8", errors="replace")
                         else:
                             text = str(raw)
+                    # Apply the repair pass used elsewhere in the suite to fix
+                    # PDF/DOCX extraction artefacts (broken words, ligature
+                    # splits, etc.) before sources reach the AI prompts.
+                    try:
+                        text = repair_broken_words(text)
+                    except Exception:
+                        pass
                 except Exception as e:
                     st.error(f"Could not read {f.name}: {e}")
                     continue
@@ -1555,6 +1563,18 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                             return False, f"Resolved to non-public address {ip}"
                     return True, None
 
+                # Custom handler that REFUSES to follow redirects, so a public
+                # initial host cannot be used to bounce into a private network.
+                class _NoRedirect(urllib.request.HTTPRedirectHandler):
+                    def http_error_301(self, req, fp, code, msg, headers):
+                        raise urllib.error.HTTPError(req.full_url, code, "Redirects are blocked", headers, fp)
+                    http_error_302 = http_error_301
+                    http_error_303 = http_error_301
+                    http_error_307 = http_error_301
+                    http_error_308 = http_error_301
+
+                _opener = urllib.request.build_opener(_NoRedirect())
+
                 MAX_BYTES = 2_000_000  # 2 MB cap per page
                 urls = [u.strip() for u in url_block.splitlines() if u.strip()]
                 fetched = 0
@@ -1563,16 +1583,13 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                     if not safe:
                         st.error(f"Skipped {url}: {reason}")
                         continue
+                    parsed = urlparse(url)
                     try:
                         req = urllib.request.Request(
                             url,
                             headers={"User-Agent": "Mozilla/5.0 (compatible; CBC-AGK-Generator/1.0)"},
                         )
-                        # urllib follows redirects by default; the destination is not
-                        # re-validated, so this fetcher trusts only that the initial
-                        # host is public. Combined with port + size + time limits this
-                        # is a reasonable trade-off for an internal authoring tool.
-                        with urllib.request.urlopen(req, timeout=15) as resp:
+                        with _opener.open(req, timeout=15) as resp:
                             charset = resp.headers.get_content_charset() or "utf-8"
                             raw = resp.read(MAX_BYTES + 1).decode(charset, errors="replace")
                             if len(raw.encode(charset, errors="replace")) > MAX_BYTES:
@@ -1582,6 +1599,10 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                         cleaned = re.sub(r"<style[^>]*>.*?</style>", " ", cleaned, flags=re.S | re.I)
                         cleaned = re.sub(r"<[^>]+>", " ", cleaned)
                         cleaned = re.sub(r"\s+", " ", cleaned).strip()
+                        try:
+                            cleaned = repair_broken_words(cleaned)
+                        except Exception:
+                            pass
                         if not cleaned:
                             st.error(f"Fetched {url} but the page contained no extractable text.")
                             continue
@@ -1593,6 +1614,14 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                             "text": f"[Source URL: {url}]\n\n{cleaned}",
                         })
                         fetched += 1
+                    except urllib.error.HTTPError as e:
+                        if "Redirects are blocked" in str(e):
+                            st.error(
+                                f"Skipped {url}: server tried to redirect (status {e.code}); "
+                                "redirects are disabled to prevent SSRF. Use the final URL directly."
+                            )
+                        else:
+                            st.error(f"Could not fetch {url}: HTTP {e.code} — {e.reason}")
                     except Exception as e:
                         st.error(f"Could not fetch {url}: {e}")
                 if fetched:
@@ -2106,7 +2135,17 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
 
         st.markdown("---")
         st.subheader("Karmayogi Competency Model (KCM) mapping")
-        if not st.session_state.gen_kcm_mapping or st.button("Regenerate KCM mapping", key="regen_kcm"):
+        st.caption(
+            "Optional. Click the button below to weave KCM behavioural and "
+            "functional competencies through the draft. Mapping does not run "
+            "automatically."
+        )
+        kcm_btn_label = (
+            "Re-map KCM competencies"
+            if st.session_state.gen_kcm_mapping
+            else "Map KCM competencies"
+        )
+        if st.button(kcm_btn_label, key="run_kcm"):
             with st.spinner("Mapping case to KCM behavioural and functional competencies…"):
                 try:
                     st.session_state.gen_kcm_mapping = map_kcm_competencies(

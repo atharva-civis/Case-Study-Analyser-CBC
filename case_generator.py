@@ -136,11 +136,62 @@ def _truncate(text, limit):
     return text[:limit] + "\n[... source truncated for prompt ...]"
 
 
-def _format_sources_for_prompt(sources, char_budget=12000):
+def _chunk_sample_source(text, share, chunk_size=2500):
+    """Return a representative sample of ``text`` that fits inside ``share``
+    characters by stitching together evenly spaced chunks.
+
+    Mirrors the chunking pattern used by ``analyze_writing_quality_chunked``
+    in ``utils.py``: split the source into fixed-size chunks, then keep the
+    first chunk, the last chunk, and as many evenly spaced middle chunks as
+    the budget allows. This preserves narrative anchors (opening/closing) and
+    distributed evidence rather than dropping everything past a head cut-off.
+    """
+    if not text:
+        return ""
+    if len(text) <= share:
+        return text
+
+    chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    if len(chunks) <= 2:
+        return _truncate(text, share)
+
+    # Always keep first + last; pick evenly spaced middle chunks until the
+    # share budget is consumed.
+    selected_indices = {0, len(chunks) - 1}
+    middle = list(range(1, len(chunks) - 1))
+    if middle:
+        budget_left = share - len(chunks[0]) - len(chunks[-1])
+        # Sample evenly across the middle, prioritising spread over depth.
+        step = max(1, len(middle) // max(1, budget_left // chunk_size))
+        for j in range(0, len(middle), step):
+            candidate = middle[j]
+            tentative = sum(len(chunks[i]) for i in selected_indices | {candidate})
+            if tentative > share:
+                break
+            selected_indices.add(candidate)
+
+    ordered = sorted(selected_indices)
+    pieces = []
+    last_idx = -1
+    for i in ordered:
+        if i != last_idx + 1 and pieces:
+            pieces.append(f"\n[... omitted intervening text from chunks "
+                          f"{last_idx + 2}-{i} of {len(chunks)} ...]\n")
+        pieces.append(chunks[i])
+        last_idx = i
+    sampled = "".join(pieces)
+    if len(sampled) > share:
+        sampled = sampled[:share] + "\n[... sampled extract truncated to fit prompt budget ...]"
+    return sampled
+
+
+def _format_sources_for_prompt(sources, char_budget=24000):
     """Concatenate the uploaded source items into a compact, labelled block.
 
     A simple proportional budget is applied so a single huge source does not
-    crowd out the others.
+    crowd out the others. Long sources are sampled in chunks (head + spaced
+    middles + tail) instead of being truncated at a hard head cut-off, so
+    evidence from the entire document still reaches the prompt.
     """
     if not sources:
         return "(no source material uploaded yet)"
@@ -150,13 +201,14 @@ def _format_sources_for_prompt(sources, char_budget=12000):
     for idx, s in enumerate(sources, 1):
         text = s.get("text", "")
         share = max(800, int(char_budget * (len(text) / total_chars)))
-        snippet = _truncate(text, share)
+        snippet = _chunk_sample_source(text, share)
         header = (
             f"--- SOURCE {idx} ---\n"
             f"Type: {s.get('type', 'unspecified')}\n"
             f"Speaker/Author: {s.get('speaker', 'unspecified')}\n"
             f"Date: {s.get('date', 'unspecified')}\n"
             f"Title/Filename: {s.get('name', 'unspecified')}\n"
+            f"Original length: {len(text):,} chars; sample shown: {len(snippet):,} chars\n"
         )
         blocks.append(header + snippet)
     return "\n\n".join(blocks)
@@ -250,7 +302,7 @@ def _call_text(prompt, temperature=0.1, seed=42):
 
 def build_source_inventory(sources):
     """Prompt 2.1 — produce a per-source inventory of what each source contains."""
-    sources_block = _format_sources_for_prompt(sources, char_budget=14000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=28000)
 
     prompt = f"""PROMPT 2.1 — Source Inventory
 
@@ -291,7 +343,7 @@ Rules:
 
 def build_chronology(sources, intake_metadata, intake_intent):
     """Prompt 2.2 — chronological timeline of events."""
-    sources_block = _format_sources_for_prompt(sources, char_budget=14000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=28000)
     intake_block = _format_intake_for_prompt(intake_metadata, intake_intent)
 
     prompt = f"""PROMPT 2.2 — Chronology Extraction
@@ -329,7 +381,7 @@ Rules:
 
 def build_stakeholder_map(sources, intake_metadata):
     """Prompt 2.3 — stakeholder mapping."""
-    sources_block = _format_sources_for_prompt(sources, char_budget=14000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=28000)
 
     prompt = f"""PROMPT 2.3 — Stakeholder Mapping
 
@@ -367,7 +419,7 @@ Rules:
 
 def build_dilemma_statement(sources, intake_metadata, intake_intent, case_type):
     """Prompt 2.4 — central dilemma statement."""
-    sources_block = _format_sources_for_prompt(sources, char_budget=10000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=20000)
     intake_block = _format_intake_for_prompt(intake_metadata, intake_intent)
     case_label = CASE_TYPES.get(case_type, {}).get("label", case_type)
 
@@ -737,7 +789,7 @@ Return as a numbered list (1., 2., 3., ...).
 
 def _build_drafting_context(intake_metadata, intake_intent, sources, processed):
     """Common shared context block for every drafting prompt."""
-    sources_block = _format_sources_for_prompt(sources, char_budget=10000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=20000)
     intake_block = _format_intake_for_prompt(intake_metadata, intake_intent)
 
     chronology = processed.get("chronology", {}).get("chronology", []) if processed else []
@@ -928,7 +980,7 @@ def run_compliance_passes(case_type, draft_sections, intake_metadata, sources):
                  CASE_TYPES.get(case_type, {}).get("default_target", 0))
     case_label = CASE_TYPES[case_type]["label"]
 
-    sources_block = _format_sources_for_prompt(sources, char_budget=8000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=16000)
 
     style_prompt = f"""You are running automated style and structure checks
 against a {case_label}. The full draft is below.
@@ -1156,7 +1208,7 @@ def generate_teaching_note(case_type, draft_sections, intake_metadata, sources, 
     case_label = CASE_TYPES[case_type]["label"]
     audience = (intake_metadata or {}).get("audience", "")
     competencies = (intake_metadata or {}).get("competencies", "")
-    sources_block = _format_sources_for_prompt(sources, char_budget=6000)
+    sources_block = _format_sources_for_prompt(sources, char_budget=12000)
 
     prompt = f"""PROMPT GROUP 12 — Generate a TEACHING NOTE for a {case_label}.
 
