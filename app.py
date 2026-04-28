@@ -1756,20 +1756,51 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
 
         proc = st.session_state.gen_processed or {}
 
-        with st.expander("Source inventory", expanded=False):
+        with st.expander("Source inventory — review and edit before drafting", expanded=False):
             inv_items = (proc.get("inventory") or {}).get("inventory", [])
             if inv_items:
-                df_rows = []
-                for item in inv_items:
-                    df_rows.append({
-                        "Source": item.get("source_index", ""),
+                inv_df_rows = [
+                    {
+                        "Source": item.get("source_index", idx + 1),
                         "Type": item.get("source_type", ""),
                         "Author / speaker": item.get("speaker_or_author", ""),
-                        "Key facts": " · ".join(item.get("key_facts", []) or []),
+                        "Key facts (one per line)": "\n".join(item.get("key_facts", []) or []),
                         "Direct quotes": len(item.get("direct_quotes", []) or []),
                         "Events extracted": len(item.get("events", []) or []),
-                    })
-                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
+                    }
+                    for idx, item in enumerate(inv_items)
+                ]
+                inv_edit = st.data_editor(
+                    pd.DataFrame(inv_df_rows),
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="fixed",
+                    disabled=["Source", "Direct quotes", "Events extracted"],
+                    key="gen_inventory_editor",
+                )
+                inv_cols = st.columns([1, 1, 4])
+                with inv_cols[0]:
+                    if st.button("Save inventory edits", key="gen_save_inventory"):
+                        rows = inv_edit.to_dict(orient="records")
+                        for idx, row in enumerate(rows):
+                            if idx >= len(inv_items):
+                                break
+                            inv_items[idx]["source_type"] = (row.get("Type") or "").strip()
+                            inv_items[idx]["speaker_or_author"] = (row.get("Author / speaker") or "").strip()
+                            facts_raw = (row.get("Key facts (one per line)") or "")
+                            inv_items[idx]["key_facts"] = [
+                                line.strip() for line in facts_raw.splitlines() if line.strip()
+                            ]
+                        proc.setdefault("inventory", {})["inventory"] = inv_items
+                        st.session_state.gen_processed = proc
+                        _gen_persist()
+                        st.success("Inventory updated.")
+                with inv_cols[1]:
+                    st.checkbox(
+                        "I have reviewed the inventory",
+                        key="gen_inventory_confirmed",
+                        value=st.session_state.get("gen_inventory_confirmed", False),
+                    )
             else:
                 st.info("No inventory generated.")
 
