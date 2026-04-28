@@ -22,9 +22,15 @@ from case_generator import (
     generate_teaching_note,
     build_case_docx,
     build_case_pdf,
+    build_case_txt,
     build_teaching_note_docx,
+    apply_compliance_fixes,
+    map_kcm_competencies,
     GeneratorAPIError,
 )
+import base64
+import urllib.request
+from urllib.parse import urlparse
 from db_models import (
     initialize_session_state,
     register_user,
@@ -481,6 +487,10 @@ if 'gen_compliance' not in st.session_state:
     st.session_state.gen_compliance = {}
 if 'gen_teaching_note' not in st.session_state:
     st.session_state.gen_teaching_note = {}
+if 'gen_kcm_mapping' not in st.session_state:
+    st.session_state.gen_kcm_mapping = {}
+if 'gen_final_documents' not in st.session_state:
+    st.session_state.gen_final_documents = {}
 
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
@@ -505,6 +515,7 @@ with st.sidebar:
                     "gen_step", "gen_case_id", "gen_case_type", "gen_metadata",
                     "gen_intent", "gen_sources", "gen_processed", "gen_sections",
                     "gen_compliance", "gen_teaching_note",
+                    "gen_kcm_mapping", "gen_final_documents",
                 ]:
                     if k in st.session_state:
                         del st.session_state[k]
@@ -531,6 +542,8 @@ with st.sidebar:
                             st.session_state.gen_sections = loaded["sections"]
                             st.session_state.gen_compliance = loaded["compliance"]
                             st.session_state.gen_teaching_note = loaded["teaching_note"]
+                            st.session_state.gen_kcm_mapping = loaded.get("kcm_mapping") or {}
+                            st.session_state.gen_final_documents = loaded.get("final_documents") or {}
                             st.session_state.gen_step = 6 if loaded["sections"] else 5 if loaded["processed"] else 4
                             st.rerun()
             else:
@@ -1338,6 +1351,8 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 sections=st.session_state.gen_sections,
                 compliance=st.session_state.gen_compliance,
                 teaching_note=st.session_state.gen_teaching_note,
+                kcm_mapping=st.session_state.gen_kcm_mapping,
+                final_documents=st.session_state.gen_final_documents,
             )
             if cid:
                 st.session_state.gen_case_id = cid
@@ -1407,6 +1422,16 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 "Competency to align with (optional, free text)",
                 value=meta.get("competencies", ""),
             )
+            note_from_author = st.text_area(
+                "Note from the Author (optional — appears as front matter)",
+                value=meta.get("note_from_author", ""),
+                height=80,
+            )
+            acknowledgements = st.text_area(
+                "Acknowledgements (optional — appears as front matter)",
+                value=meta.get("acknowledgements", ""),
+                height=80,
+            )
             teaching_note = st.checkbox(
                 "Generate a teaching note alongside the case",
                 value=bool(meta.get("teaching_note", True)),
@@ -1426,6 +1451,8 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 "audience": audience.strip(),
                 "word_target": int(word_target),
                 "competencies": competencies.strip(),
+                "note_from_author": note_from_author.strip(),
+                "acknowledgements": acknowledgements.strip(),
                 "teaching_note": bool(teaching_note),
             }
             _gen_persist()
@@ -1443,8 +1470,8 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
         )
 
         uploaded = st.file_uploader(
-            "Upload files (PDF or DOCX). You may upload several.",
-            type=["pdf", "docx"],
+            "Upload files (PDF, DOCX or TXT). You may upload several.",
+            type=["pdf", "docx", "txt"],
             accept_multiple_files=True,
             key="gen_source_uploader",
         )
@@ -1455,10 +1482,17 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 if f.name in existing_names:
                     continue
                 try:
-                    if f.type == "application/pdf":
+                    fname_lower = f.name.lower()
+                    if f.type == "application/pdf" or fname_lower.endswith(".pdf"):
                         text = extract_text_from_pdf(f)
-                    else:
+                    elif fname_lower.endswith(".docx"):
                         text = extract_text_from_docx(f)
+                    else:
+                        raw = f.read()
+                        if isinstance(raw, bytes):
+                            text = raw.decode("utf-8", errors="replace")
+                        else:
+                            text = str(raw)
                 except Exception as e:
                     st.error(f"Could not read {f.name}: {e}")
                     continue
@@ -1470,6 +1504,101 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                     "text": text,
                 })
             _gen_persist()
+
+        with st.expander("Add sources by URL (one per line)"):
+            with st.form("gen_url_sources", clear_on_submit=True):
+                url_block = st.text_area(
+                    "Paste one URL per line. The page text will be fetched and added as a source.",
+                    placeholder="https://example.gov.in/report\nhttps://news.example.com/article",
+                    height=120,
+                )
+                fetch_clicked = st.form_submit_button("Fetch URLs and add as sources")
+            if fetch_clicked and url_block.strip():
+                import socket
+                import ipaddress
+
+                def _is_safe_public_url(u):
+                    """Block SSRF: reject non-public IP targets, metadata endpoints,
+                    non-default ports and non-http(s) schemes."""
+                    try:
+                        p = urlparse(u)
+                    except Exception:
+                        return False, "Could not parse URL"
+                    if p.scheme not in ("http", "https"):
+                        return False, "Only http(s) URLs are accepted"
+                    if not p.hostname:
+                        return False, "Missing hostname"
+                    # Disallow non-standard ports to reduce internal-service probing surface.
+                    if p.port not in (None, 80, 443):
+                        return False, f"Port {p.port} is not allowed"
+                    host = p.hostname.lower()
+                    if host in ("localhost", "metadata.google.internal", "metadata"):
+                        return False, "Host is blocked"
+                    try:
+                        infos = socket.getaddrinfo(host, None)
+                    except socket.gaierror:
+                        return False, "DNS lookup failed"
+                    for info in infos:
+                        ip = info[4][0]
+                        try:
+                            ip_obj = ipaddress.ip_address(ip)
+                        except ValueError:
+                            return False, f"Resolved to non-IP {ip}"
+                        if (
+                            ip_obj.is_private
+                            or ip_obj.is_loopback
+                            or ip_obj.is_link_local
+                            or ip_obj.is_reserved
+                            or ip_obj.is_multicast
+                            or ip_obj.is_unspecified
+                        ):
+                            return False, f"Resolved to non-public address {ip}"
+                    return True, None
+
+                MAX_BYTES = 2_000_000  # 2 MB cap per page
+                urls = [u.strip() for u in url_block.splitlines() if u.strip()]
+                fetched = 0
+                for url in urls:
+                    safe, reason = _is_safe_public_url(url)
+                    if not safe:
+                        st.error(f"Skipped {url}: {reason}")
+                        continue
+                    try:
+                        req = urllib.request.Request(
+                            url,
+                            headers={"User-Agent": "Mozilla/5.0 (compatible; CBC-AGK-Generator/1.0)"},
+                        )
+                        # urllib follows redirects by default; the destination is not
+                        # re-validated, so this fetcher trusts only that the initial
+                        # host is public. Combined with port + size + time limits this
+                        # is a reasonable trade-off for an internal authoring tool.
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            charset = resp.headers.get_content_charset() or "utf-8"
+                            raw = resp.read(MAX_BYTES + 1).decode(charset, errors="replace")
+                            if len(raw.encode(charset, errors="replace")) > MAX_BYTES:
+                                st.warning(f"{url} was larger than 2 MB — only the first 2 MB was kept.")
+                        # Cheap HTML-to-text: drop scripts/styles, strip tags.
+                        cleaned = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.S | re.I)
+                        cleaned = re.sub(r"<style[^>]*>.*?</style>", " ", cleaned, flags=re.S | re.I)
+                        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+                        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+                        if not cleaned:
+                            st.error(f"Fetched {url} but the page contained no extractable text.")
+                            continue
+                        st.session_state.gen_sources.append({
+                            "name": parsed.netloc + parsed.path[:60],
+                            "type": "Website / URL",
+                            "speaker": parsed.netloc,
+                            "date": "",
+                            "text": f"[Source URL: {url}]\n\n{cleaned}",
+                        })
+                        fetched += 1
+                    except Exception as e:
+                        st.error(f"Could not fetch {url}: {e}")
+                if fetched:
+                    _gen_persist()
+                    st.success(f"Added {fetched} URL source(s).")
+                    st.rerun()
 
         with st.expander("Add a source by pasting text (URL content, raw notes, transcripts)"):
             with st.form("gen_paste_source", clear_on_submit=True):
@@ -1595,42 +1724,85 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
             else:
                 st.info("No inventory generated.")
 
-        with st.expander("Chronology", expanded=True):
+        with st.expander("Chronology — edit before drafting", expanded=True):
             chrono = (proc.get("chronology") or {}).get("chronology", [])
-            if chrono:
-                df_rows = []
-                for c in chrono:
-                    df_rows.append({
-                        "Date": c.get("approx_date", ""),
-                        "Event": c.get("event", ""),
-                        "Actor": c.get("actor", ""),
-                        "Outcome": c.get("outcome", ""),
-                        "Sources": ", ".join(str(s) for s in (c.get("source_index") or [])),
+            df_rows = [
+                {
+                    "Date": c.get("approx_date", ""),
+                    "Event": c.get("event", ""),
+                    "Actor": c.get("actor", ""),
+                    "Outcome": c.get("outcome", ""),
+                    "Sources": ", ".join(str(s) for s in (c.get("source_index") or [])),
+                }
+                for c in chrono
+            ] or [{"Date": "", "Event": "", "Actor": "", "Outcome": "", "Sources": ""}]
+            chrono_df = st.data_editor(
+                pd.DataFrame(df_rows),
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="gen_chrono_editor",
+            )
+            if st.button("Save chronology edits", key="save_chrono_edits"):
+                rows = []
+                for _, r in chrono_df.iterrows():
+                    if not (str(r.get("Event", "")).strip() or str(r.get("Date", "")).strip()):
+                        continue
+                    src_str = str(r.get("Sources", "") or "")
+                    src_indexes = [s.strip() for s in src_str.split(",") if s.strip()]
+                    rows.append({
+                        "approx_date": str(r.get("Date", "") or "").strip(),
+                        "event": str(r.get("Event", "") or "").strip(),
+                        "actor": str(r.get("Actor", "") or "").strip(),
+                        "outcome": str(r.get("Outcome", "") or "").strip(),
+                        "source_index": src_indexes,
                     })
-                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
-            else:
-                st.info("No chronology extracted.")
+                proc.setdefault("chronology", {})["chronology"] = rows
+                st.session_state.gen_processed = proc
+                _gen_persist()
+                st.success("Chronology saved.")
+
             gaps = (proc.get("chronology") or {}).get("gaps", [])
             if gaps:
                 st.warning("Gaps in the source material:")
                 for g in gaps:
                     st.write(f"- {g}")
 
-        with st.expander("Stakeholder map", expanded=False):
+        with st.expander("Stakeholder map — edit before drafting", expanded=False):
             sks = (proc.get("stakeholders") or {}).get("stakeholders", [])
-            if sks:
-                df_rows = []
-                for s in sks:
-                    df_rows.append({
-                        "Name": s.get("name", ""),
-                        "Designation": s.get("designation", ""),
-                        "Side": s.get("side", ""),
-                        "Perspective": s.get("perspective", ""),
-                        "Tensions": s.get("tensions", ""),
+            df_rows = [
+                {
+                    "Name": s.get("name", ""),
+                    "Designation": s.get("designation", ""),
+                    "Side": s.get("side", ""),
+                    "Perspective": s.get("perspective", ""),
+                    "Tensions": s.get("tensions", ""),
+                }
+                for s in sks
+            ] or [{"Name": "", "Designation": "", "Side": "", "Perspective": "", "Tensions": ""}]
+            sks_df = st.data_editor(
+                pd.DataFrame(df_rows),
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="gen_stake_editor",
+            )
+            if st.button("Save stakeholder edits", key="save_stake_edits"):
+                rows = []
+                for _, r in sks_df.iterrows():
+                    if not str(r.get("Name", "")).strip():
+                        continue
+                    rows.append({
+                        "name": str(r.get("Name", "") or "").strip(),
+                        "designation": str(r.get("Designation", "") or "").strip(),
+                        "side": str(r.get("Side", "") or "").strip(),
+                        "perspective": str(r.get("Perspective", "") or "").strip(),
+                        "tensions": str(r.get("Tensions", "") or "").strip(),
                     })
-                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
-            else:
-                st.info("No stakeholders extracted.")
+                proc.setdefault("stakeholders", {})["stakeholders"] = rows
+                st.session_state.gen_processed = proc
+                _gen_persist()
+                st.success("Stakeholder map saved.")
 
         st.subheader("Central dilemma — review and edit")
         existing = (proc.get("dilemma") or {}).get("dilemma_statement", "")
@@ -1771,9 +1943,10 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
         m_cols[2].metric("Findings", len(findings))
 
         if findings:
-            st.subheader("Findings")
+            st.subheader("Findings — tick the rows whose fixes you want to apply")
             df = pd.DataFrame([
                 {
+                    "Apply": True,
                     "Type": f.get("type", ""),
                     "Section": f.get("section", ""),
                     "Severity": f.get("severity", ""),
@@ -1783,17 +1956,69 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 }
                 for f in findings
             ])
-            sev_colors = {"High": "#dc3545", "Medium": "#ffc107", "Low": "#6c757d"}
+            edited = st.data_editor(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                disabled=["Type", "Section", "Severity", "Original", "Suggestion", "Explanation"],
+                key="gen_findings_editor",
+                height=min(500, 60 + len(df) * 35),
+            )
 
-            def _style_sev(v):
-                c = sev_colors.get(v)
-                return f"color: white; background-color: {c};" if c else ""
-
-            try:
-                styled = df.style.applymap(_style_sev, subset=["Severity"])
-                st.dataframe(styled, use_container_width=True, hide_index=True, height=min(500, 60 + len(df) * 35))
-            except Exception:
-                st.dataframe(df, use_container_width=True, hide_index=True, height=min(500, 60 + len(df) * 35))
+            apply_cols = st.columns([1, 1, 3])
+            with apply_cols[0]:
+                if st.button("Apply selected fixes", key="apply_compliance_fixes_btn"):
+                    selected_indices = [
+                        i for i, row in edited.iterrows() if bool(row.get("Apply"))
+                    ]
+                    if not selected_indices:
+                        st.warning("No fixes were selected.")
+                    else:
+                        try:
+                            with st.spinner(f"Applying {len(selected_indices)} fix(es) to your draft…"):
+                                updated, applied_count, skipped = apply_compliance_fixes(
+                                    st.session_state.gen_case_type,
+                                    st.session_state.gen_sections,
+                                    findings,
+                                    selected_indices,
+                                )
+                            st.session_state.gen_sections = updated
+                            # Re-run compliance so the badges/word count refresh.
+                            try:
+                                st.session_state.gen_compliance = run_compliance_passes(
+                                    st.session_state.gen_case_type,
+                                    st.session_state.gen_sections,
+                                    st.session_state.gen_metadata,
+                                    st.session_state.gen_sources,
+                                )
+                            except GeneratorAPIError as e:
+                                st.warning(f"Re-running compliance failed: {e}")
+                            except Exception as e:
+                                st.warning(f"Re-running compliance failed unexpectedly: {e}")
+                            _gen_persist()
+                            msg = f"Applied {applied_count} fix(es)."
+                            if skipped:
+                                msg += f" {len(skipped)} could not be applied (original phrase not found verbatim — edit manually)."
+                            st.success(msg)
+                            st.rerun()
+                        except GeneratorAPIError as e:
+                            st.error(f"Could not apply fixes: {e}")
+            with apply_cols[1]:
+                if st.button("Re-run compliance", key="rerun_compliance_btn"):
+                    try:
+                        with st.spinner("Re-running compliance review…"):
+                            st.session_state.gen_compliance = run_compliance_passes(
+                                st.session_state.gen_case_type,
+                                st.session_state.gen_sections,
+                                st.session_state.gen_metadata,
+                                st.session_state.gen_sources,
+                            )
+                        _gen_persist()
+                        st.rerun()
+                    except GeneratorAPIError as e:
+                        st.error(f"Compliance review failed: {e}")
+                    except Exception as e:
+                        st.error(f"Compliance review failed unexpectedly: {e}")
         else:
             st.success("No issues flagged.")
 
@@ -1880,6 +2105,47 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
             st.info("Teaching note generation was disabled in metadata.")
 
         st.markdown("---")
+        st.subheader("Karmayogi Competency Model (KCM) mapping")
+        if not st.session_state.gen_kcm_mapping or st.button("Regenerate KCM mapping", key="regen_kcm"):
+            with st.spinner("Mapping case to KCM behavioural and functional competencies…"):
+                try:
+                    st.session_state.gen_kcm_mapping = map_kcm_competencies(
+                        ctype,
+                        st.session_state.gen_sections,
+                        st.session_state.gen_metadata,
+                    )
+                    _gen_persist()
+                except GeneratorAPIError as e:
+                    st.error(f"KCM mapping failed: {e}")
+                except Exception as e:
+                    st.error(f"KCM mapping failed unexpectedly: {e}")
+        kcm = st.session_state.gen_kcm_mapping or {}
+        comps = kcm.get("competencies", []) or []
+        if comps:
+            behavioural = [c for c in comps if str(c.get("category", "")).lower().startswith("behav")]
+            functional = [c for c in comps if str(c.get("category", "")).lower().startswith("func")]
+            kc_cols = st.columns(2)
+            with kc_cols[0]:
+                st.markdown("**Behavioural competencies**")
+                if behavioural:
+                    for c in behavioural:
+                        st.markdown(f"- **{c.get('name', '')}** — {c.get('justification', '')}")
+                else:
+                    st.caption("None identified.")
+            with kc_cols[1]:
+                st.markdown("**Functional competencies**")
+                if functional:
+                    for c in functional:
+                        st.markdown(f"- **{c.get('name', '')}** — {c.get('justification', '')}")
+                else:
+                    st.caption("None identified.")
+            ws = kcm.get("weaving_suggestions", []) or []
+            if ws:
+                with st.expander("Suggestions for weaving these competencies more visibly", expanded=False):
+                    for s in ws:
+                        st.markdown(f"- {s}")
+
+        st.markdown("---")
         st.subheader("Download")
 
         try:
@@ -1892,6 +2158,7 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
         except Exception as e:
             docx_bytes = None
             st.error(f"DOCX export failed: {e}")
+
         try:
             pdf_bytes = build_case_pdf(
                 ctype,
@@ -1903,25 +2170,19 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
             pdf_bytes = None
             st.error(f"PDF export failed: {e}")
 
-        title_for_file = re.sub(r"[^A-Za-z0-9_-]+", "_", (meta.get("title") or "case_study"))[:60] or "case_study"
+        try:
+            txt_bytes = build_case_txt(
+                ctype,
+                st.session_state.gen_metadata,
+                st.session_state.gen_sections,
+            )
+            if isinstance(txt_bytes, str):
+                txt_bytes = txt_bytes.encode("utf-8")
+        except Exception as e:
+            txt_bytes = None
+            st.error(f"Plain-text export failed: {e}")
 
-        cols = st.columns(3)
-        if docx_bytes:
-            cols[0].download_button(
-                "Download case (DOCX)",
-                data=docx_bytes,
-                file_name=f"{title_for_file}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True,
-            )
-        if pdf_bytes:
-            cols[1].download_button(
-                "Download case (PDF)",
-                data=pdf_bytes,
-                file_name=f"{title_for_file}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+        tn_docx = None
         if st.session_state.gen_teaching_note:
             try:
                 tn_docx = build_teaching_note_docx(
@@ -1929,19 +2190,63 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                     st.session_state.gen_teaching_note,
                     ctype,
                 )
-                cols[2].download_button(
-                    "Download teaching note (DOCX)",
-                    data=tn_docx,
-                    file_name=f"{title_for_file}_teaching_note.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True,
-                )
             except Exception as e:
-                cols[2].error(f"Teaching note export failed: {e}")
+                st.error(f"Teaching note export failed: {e}")
+
+        title_for_file = re.sub(r"[^A-Za-z0-9_-]+", "_", (meta.get("title") or "case_study"))[:60] or "case_study"
+
+        cols = st.columns(4)
+        if docx_bytes:
+            cols[0].download_button(
+                "Case (DOCX)",
+                data=docx_bytes,
+                file_name=f"{title_for_file}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+        if pdf_bytes:
+            cols[1].download_button(
+                "Case (PDF)",
+                data=pdf_bytes,
+                file_name=f"{title_for_file}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        if txt_bytes:
+            cols[2].download_button(
+                "Case (TXT)",
+                data=txt_bytes,
+                file_name=f"{title_for_file}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        if tn_docx:
+            cols[3].download_button(
+                "Teaching note (DOCX)",
+                data=tn_docx,
+                file_name=f"{title_for_file}_teaching_note.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
 
         st.markdown("---")
         if st.button("Mark as finalised and save", key="gen_finalise"):
             try:
+                # Persist final document bytes (base64-encoded) so they can be
+                # re-downloaded later without regenerating from the AI calls.
+                final_docs = {}
+                if docx_bytes:
+                    final_docs["docx_b64"] = base64.b64encode(docx_bytes).decode("ascii")
+                if pdf_bytes:
+                    final_docs["pdf_b64"] = base64.b64encode(pdf_bytes).decode("ascii")
+                if txt_bytes:
+                    final_docs["txt_b64"] = base64.b64encode(txt_bytes).decode("ascii")
+                if tn_docx:
+                    final_docs["teaching_note_docx_b64"] = base64.b64encode(tn_docx).decode("ascii")
+                final_docs["finalised_at"] = datetime.utcnow().isoformat() + "Z"
+                final_docs["filename_stem"] = title_for_file
+                st.session_state.gen_final_documents = final_docs
+
                 cid = save_generated_case(
                     user_id=st.session_state.user_id,
                     case_id=st.session_state.gen_case_id,
@@ -1955,10 +2260,12 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                     sections=st.session_state.gen_sections,
                     compliance=st.session_state.gen_compliance,
                     teaching_note=st.session_state.gen_teaching_note,
+                    kcm_mapping=st.session_state.gen_kcm_mapping,
+                    final_documents=final_docs,
                 )
                 if cid:
                     st.session_state.gen_case_id = cid
-                    st.success("Saved as finalised.")
+                    st.success("Saved as finalised. Final DOCX/PDF/TXT are stored with the draft.")
                 else:
                     st.error("Could not save.")
             except Exception as e:

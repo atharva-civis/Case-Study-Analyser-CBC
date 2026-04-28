@@ -32,6 +32,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from fpdf import FPDF
 
 from utils import call_openai_api, sanitize_text_for_pdf
+from assessment_criteria import KCM_COMPETENCIES
 
 
 # ---------------------------------------------------------------------------
@@ -1300,6 +1301,40 @@ def build_case_docx(case_type, intake_metadata, draft_sections, compliance=None)
         run.font.size = Pt(11)
         run.bold = True
 
+    extras = []
+    for label, key in [
+        ("Initiative", "initiative"),
+        ("Region", "region"),
+        ("Sector", "sector"),
+        ("Time period", "time_period"),
+        ("Audience", "audience"),
+    ]:
+        val = md.get(key)
+        if val:
+            extras.append(f"{label}: {val}")
+    if extras:
+        ep = doc.add_paragraph()
+        ep.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        ep.add_run("\n" + "  ·  ".join(extras)).font.size = Pt(10)
+
+    doc.add_page_break()
+
+    # AGK front matter — Note from Author, Acknowledgements, Disclaimer
+    _add_heading(doc, "Note from the Author", level=1, color=blue)
+    _add_body(doc, md.get("note_from_author") or "[To be added by the author.]")
+    doc.add_paragraph("")
+
+    _add_heading(doc, "Acknowledgements", level=1, color=blue)
+    _add_body(doc, md.get("acknowledgements") or "[To be added by the author.]")
+    doc.add_paragraph("")
+
+    _add_heading(doc, "Disclaimer", level=1, color=blue)
+    _add_body(
+        doc,
+        "This case has been written for classroom discussion based on "
+        "published and primary sources. It is not intended to illustrate "
+        "either effective or ineffective handling of a managerial situation.",
+    )
     doc.add_page_break()
 
     # Body sections
@@ -1471,11 +1506,47 @@ def build_case_pdf(case_type, intake_metadata, draft_sections, compliance=None):
     ]
     if md.get("authors"):
         cover_lines.append(f"Author(s): {md.get('authors')}")
+    for label, key in [
+        ("Initiative", "initiative"),
+        ("Region", "region"),
+        ("Sector", "sector"),
+        ("Time period", "time_period"),
+        ("Audience", "audience"),
+    ]:
+        val = md.get(key)
+        if val:
+            cover_lines.append(f"{label}: {val}")
     for line in cover_lines:
         pdf.multi_cell(0, 6, sanitize_text_for_pdf(line), align="C")
 
     pdf.add_page()
     pdf._skip_header = False
+
+    # AGK front matter — Note from Author, Acknowledgements, Disclaimer
+    def _front_matter_block(heading, body):
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 58, 138)
+        pdf.multi_cell(0, 7, sanitize_text_for_pdf(heading))
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.multi_cell(0, 6, sanitize_text_for_pdf(body))
+        pdf.ln(4)
+
+    _front_matter_block(
+        "Note from the Author",
+        md.get("note_from_author") or "[To be added by the author.]",
+    )
+    _front_matter_block(
+        "Acknowledgements",
+        md.get("acknowledgements") or "[To be added by the author.]",
+    )
+    _front_matter_block(
+        "Disclaimer",
+        "This case has been written for classroom discussion based on "
+        "published and primary sources. It is not intended to illustrate "
+        "either effective or ineffective handling of a managerial situation.",
+    )
+    pdf.add_page()
 
     def write_section_body(body):
         pdf.set_font("Helvetica", "", 11)
@@ -1536,3 +1607,206 @@ def build_case_pdf(case_type, intake_metadata, draft_sections, compliance=None):
     if isinstance(output, str):
         return output.encode("latin-1", errors="replace")
     return bytes(output)
+
+
+# ---------------------------------------------------------------------------
+# Stage 5b — Apply selected compliance fixes back to draft
+# ---------------------------------------------------------------------------
+
+def apply_compliance_fixes(case_type, draft_sections, findings, selected_indices):
+    """Apply literal find/replace for each selected finding into the matching
+    section text. Returns (new_draft_sections, applied_count, skipped).
+
+    A fix is applied only when the original_text appears verbatim in the
+    matching section (or anywhere in the document if the section is "Whole
+    document"). Skipped fixes are reported with the reason so the UI can
+    surface them.
+    """
+    applied = 0
+    skipped = []
+    new_sections = {sid: dict(sec or {}) for sid, sec in (draft_sections or {}).items()}
+
+    section_label_to_sid = {}
+    if case_type == "caselet":
+        section_label_to_sid["Caselet"] = "caselet"
+        section_label_to_sid["Whole document"] = "caselet"
+    else:
+        for sid, sname in CASE_TYPES.get(case_type, {}).get("sections", []):
+            section_label_to_sid[sname] = sid
+
+    for idx in selected_indices:
+        if idx < 0 or idx >= len(findings):
+            continue
+        f = findings[idx] or {}
+        original = (f.get("original_text") or "").strip()
+        suggestion = (f.get("suggestion") or "").strip()
+        section_label = (f.get("section") or "").strip()
+        if not original or not suggestion:
+            skipped.append({"index": idx, "reason": "Original or suggestion is empty"})
+            continue
+
+        target_sids = []
+        if section_label and section_label in section_label_to_sid:
+            target_sids.append(section_label_to_sid[section_label])
+        else:
+            target_sids = list(new_sections.keys()) if new_sections else (
+                ["caselet"] if case_type == "caselet" else
+                [s[0] for s in CASE_TYPES.get(case_type, {}).get("sections", [])]
+            )
+
+        replaced_anywhere = False
+        for sid in target_sids:
+            sec = new_sections.get(sid) or {}
+            text = sec.get("text", "")
+            if not text:
+                continue
+            if original in text:
+                sec["text"] = text.replace(original, suggestion, 1)
+                new_sections[sid] = sec
+                replaced_anywhere = True
+                applied += 1
+                break
+
+        if not replaced_anywhere:
+            skipped.append({
+                "index": idx,
+                "reason": "Original phrase not found verbatim — edit manually.",
+            })
+
+    return new_sections, applied, skipped
+
+
+# ---------------------------------------------------------------------------
+# Stage 6b — KCM competency mapping (Group 11)
+# ---------------------------------------------------------------------------
+
+def _format_kcm_for_prompt():
+    """Render the KCM_COMPETENCIES dict as a compact list for the prompt."""
+    lines = []
+    for category, items in KCM_COMPETENCIES.items():
+        lines.append(f"## {category.title()} competencies")
+        for key, comp in items.items():
+            sub = ", ".join(comp.get("sub_competencies", []) or [])
+            lines.append(
+                f"- {comp['name']} ({key}): {comp['description']} "
+                f"Sub-competencies: {sub}."
+            )
+    return "\n".join(lines)
+
+
+def map_kcm_competencies(case_type, draft_sections, intake_metadata):
+    """Identify the top 3-4 KCM behavioural and functional competencies woven
+    through the case, with a short justification grounded in the draft text.
+
+    Returns ``{"competencies": [{"category": "behavioral|functional", "key": ..., "name": ..., "justification": ...}], "weaving_suggestions": [str]}``
+    """
+    full_text = _assemble_full_draft(case_type, draft_sections)
+    if not full_text.strip():
+        return {"competencies": [], "weaving_suggestions": []}
+
+    md = intake_metadata or {}
+    declared = md.get("competencies") or ""
+
+    prompt = f"""PROMPT GROUP 11 — Karmayogi Competency Model (KCM) mapping.
+
+Below is the full draft of a case study and the KCM competency catalogue.
+Identify the THREE TO FOUR competencies (mix of behavioural and functional)
+that the case best illustrates. Pick competencies that are clearly visible in
+the protagonist's choices and the events described — do NOT invent
+competencies the text does not support.
+
+Author has indicated this competency to align with (may be empty):
+"{declared}"
+
+For each competency, give a short justification (max two sentences) that
+quotes or paraphrases concrete moments from the draft. Then give 1-3
+suggestions for how the author could weave the competency more visibly into
+the narrative without changing the underlying facts.
+
+=== KCM CATALOGUE ===
+{_format_kcm_for_prompt()}
+
+=== DRAFT ===
+{full_text[:18000]}
+
+Return ONLY JSON:
+{{
+  "competencies": [
+    {{
+      "category": "behavioral | functional",
+      "key": "the dictionary key from the catalogue",
+      "name": "the competency display name",
+      "justification": "<= 2 sentences grounded in the draft"
+    }}
+  ],
+  "weaving_suggestions": [
+    "Suggestion 1...",
+    "Suggestion 2..."
+  ]
+}}
+"""
+    # Let GeneratorAPIError propagate so the UI can surface the failure
+    # explicitly instead of silently showing an empty mapping.
+    result = _call_json(prompt)
+    return {
+        "competencies": result.get("competencies", []) or [],
+        "weaving_suggestions": result.get("weaving_suggestions", []) or [],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Stage 6 — Plain text export
+# ---------------------------------------------------------------------------
+
+def build_case_txt(case_type, intake_metadata, draft_sections):
+    """Return the case as a plain-text bytes blob — useful when authors want a
+    Unicode-safe copy that bypasses the FPDF latin-1 limitation."""
+    md = intake_metadata or {}
+    title = md.get("title") or "Case Study"
+    lines = [
+        title,
+        "=" * len(title),
+        "",
+        f"Case Number: 2026CBC/AGK/0XX (to be filled by CBC)",
+        f"Date: {datetime.utcnow().strftime('%d %B %Y')}",
+    ]
+    if md.get("authors"):
+        lines.append(f"Author(s): {md['authors']}")
+    if md.get("initiative"):
+        lines.append(f"Initiative: {md['initiative']}")
+    if md.get("region"):
+        lines.append(f"Region: {md['region']}")
+    if md.get("sector"):
+        lines.append(f"Sector: {md['sector']}")
+    lines.append("")
+    lines.append("Note from the Author")
+    lines.append("-" * 20)
+    lines.append(md.get("note_from_author") or "[To be added by the author.]")
+    lines.append("")
+    lines.append("Acknowledgements")
+    lines.append("-" * 16)
+    lines.append(md.get("acknowledgements") or "[To be added by the author.]")
+    lines.append("")
+    lines.append("Disclaimer")
+    lines.append("-" * 10)
+    lines.append(
+        "This case has been written for classroom discussion based on published "
+        "and primary sources. It is not intended to illustrate either effective "
+        "or ineffective handling of a managerial situation."
+    )
+    lines.append("")
+
+    if case_type == "caselet":
+        body = (draft_sections or {}).get("caselet", {}).get("text", "")
+        lines.append(_strip_inline_markers(body))
+    else:
+        for sid, sname in CASE_TYPES[case_type]["sections"]:
+            sec = (draft_sections or {}).get(sid)
+            if not sec or not sec.get("text"):
+                continue
+            lines.append("")
+            lines.append(sname)
+            lines.append("-" * len(sname))
+            lines.append(_strip_inline_markers(sec["text"]))
+
+    return ("\n".join(lines) + "\n").encode("utf-8")

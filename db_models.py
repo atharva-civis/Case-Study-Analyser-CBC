@@ -69,6 +69,8 @@ class GeneratedCase(Base):
     sections_json = Column(Text)        # per-section draft text
     compliance_json = Column(Text)      # findings + abbreviations + footnotes + refs
     teaching_note_json = Column(Text)   # generated teaching note
+    kcm_mapping_json = Column(Text)     # Group 11 KCM competency weaving
+    final_documents_json = Column(Text) # base64-encoded finalised DOCX/PDF/TXT bytes
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -99,6 +101,29 @@ class AssessmentHistory(Base):
 
 # Create all tables in the database
 Base.metadata.create_all(bind=engine)
+
+# Lightweight column migration for the generated_cases table — adds new
+# JSON columns added after the table was first created. Idempotent and
+# safe on every startup.
+def _ensure_generated_cases_columns():
+    extra_cols = [
+        ("kcm_mapping_json", "TEXT"),
+        ("final_documents_json", "TEXT"),
+    ]
+    try:
+        with engine.begin() as conn:
+            for col_name, col_type in extra_cols:
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE generated_cases ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                    ))
+                except Exception as e:
+                    print(f"Migration warning for {col_name}: {e}")
+    except Exception as e:
+        print(f"Could not migrate generated_cases columns: {e}")
+
+
+_ensure_generated_cases_columns()
 
 # Add predefined users (will only add if they don't exist)
 def create_predefined_users():
@@ -289,6 +314,8 @@ def save_generated_case(user_id, case_id=None, **fields):
         "sections": "sections_json",
         "compliance": "compliance_json",
         "teaching_note": "teaching_note_json",
+        "kcm_mapping": "kcm_mapping_json",
+        "final_documents": "final_documents_json",
     }
 
     try:
@@ -378,6 +405,8 @@ def get_generated_case(case_id, user_id):
             "sections": _load(case.sections_json) or {},
             "compliance": _load(case.compliance_json) or {},
             "teaching_note": _load(case.teaching_note_json) or {},
+            "kcm_mapping": _load(case.kcm_mapping_json) or {},
+            "final_documents": _load(case.final_documents_json) or {},
             "created_at": case.created_at,
             "updated_at": case.updated_at,
         }
