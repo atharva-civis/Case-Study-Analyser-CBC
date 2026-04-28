@@ -13,15 +13,31 @@ import docx
 from datetime import datetime, timedelta
 from utils import extract_text_from_pdf, extract_text_from_docx, call_openai_api, generate_report_pdf, get_download_link, create_gauge_chart, analyze_writing_quality_chunked, load_case_database, run_caseconnect_analysis
 from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate_weighted_score, get_score_color, get_grade_label, SECTOR_MAPPING, PROMPT_EXCLUSION_INSTRUCTIONS, KCM_COMPETENCIES
+from case_generator import (
+    CASE_TYPES,
+    run_source_processing,
+    draft_case_section,
+    draft_caselet,
+    run_compliance_passes,
+    generate_teaching_note,
+    build_case_docx,
+    build_case_pdf,
+    build_teaching_note_docx,
+    GeneratorAPIError,
+)
 from db_models import (
-    initialize_session_state, 
-    register_user, 
-    authenticate_user, 
-    login_user, 
-    logout_user, 
+    initialize_session_state,
+    register_user,
+    authenticate_user,
+    login_user,
+    logout_user,
     save_assessment,
     get_user_assessments,
-    get_assessment
+    get_assessment,
+    save_generated_case,
+    get_user_generated_cases,
+    get_generated_case,
+    delete_generated_case,
 )
 
 # Set page configuration
@@ -349,6 +365,8 @@ def display_header_with_logos():
             st.title("Case Study Analyser")
         elif active == "caseconnect":
             st.title("CaseConnect")
+        elif active == "generator":
+            st.title("Case Study Generator")
         else:
             st.title("CBC-India AGK Case Study Suite")
     with col3:
@@ -382,6 +400,14 @@ else:
             the tool will recommend cases aligned with your course design, competencies, and sector.
             
             *Referring to {CASE_COUNT} case studies from the AGK repository.*
+            """)
+        elif active == "generator":
+            st.markdown("""
+            The Case Study Generator helps authors draft AGK-quality case studies from raw source
+            material such as interview transcripts, reports, news articles, websites and notes.
+            Three case types are supported — Lesson-Drawing, Decision-Forcing, and Caselet — and
+            the tool enforces British English, past tense, neutral tone, the AGK template structure,
+            and an optional teaching note.
             """)
     
     with col2:
@@ -434,6 +460,28 @@ if 'caseconnect_results' not in st.session_state:
 if 'caseconnect_curriculum_text' not in st.session_state:
     st.session_state.caseconnect_curriculum_text = ""
 
+# Case Study Generator session state
+if 'gen_step' not in st.session_state:
+    st.session_state.gen_step = 1
+if 'gen_case_id' not in st.session_state:
+    st.session_state.gen_case_id = None
+if 'gen_case_type' not in st.session_state:
+    st.session_state.gen_case_type = None
+if 'gen_metadata' not in st.session_state:
+    st.session_state.gen_metadata = {}
+if 'gen_intent' not in st.session_state:
+    st.session_state.gen_intent = {}
+if 'gen_sources' not in st.session_state:
+    st.session_state.gen_sources = []
+if 'gen_processed' not in st.session_state:
+    st.session_state.gen_processed = {}
+if 'gen_sections' not in st.session_state:
+    st.session_state.gen_sections = {}
+if 'gen_compliance' not in st.session_state:
+    st.session_state.gen_compliance = {}
+if 'gen_teaching_note' not in st.session_state:
+    st.session_state.gen_teaching_note = {}
+
 # Sidebar with simple navigation (only for logged-in users)
 with st.sidebar:
     if st.session_state.logged_in and st.session_state.get("active_tool") is not None:
@@ -442,6 +490,51 @@ with st.sidebar:
             st.session_state.caseconnect_results = None
             st.session_state.caseconnect_curriculum_text = ""
             st.rerun()
+
+        if st.session_state.get("active_tool") == "generator":
+            st.markdown("---")
+            st.subheader("Case Generator")
+            st.caption(f"Step {st.session_state.gen_step} of 8")
+            ct = st.session_state.gen_case_type
+            if ct:
+                st.write(f"**Case type:** {CASE_TYPES[ct]['label']}")
+            if st.session_state.gen_metadata.get("title"):
+                st.write(f"**Title:** {st.session_state.gen_metadata['title']}")
+            if st.button("Start a new case", key="gen_reset_btn", use_container_width=True):
+                for k in [
+                    "gen_step", "gen_case_id", "gen_case_type", "gen_metadata",
+                    "gen_intent", "gen_sources", "gen_processed", "gen_sections",
+                    "gen_compliance", "gen_teaching_note",
+                ]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
+
+            st.markdown("---")
+            st.subheader("Saved drafts")
+            try:
+                saved_cases = get_user_generated_cases(st.session_state.user_id) if st.session_state.user_id else []
+            except Exception:
+                saved_cases = []
+            if saved_cases:
+                for sc in saved_cases[:10]:
+                    label = (sc.title or "Untitled") + f"  ·  {sc.case_type or '?'}"
+                    if st.button(label, key=f"load_gen_{sc.id}", use_container_width=True):
+                        loaded = get_generated_case(sc.id, st.session_state.user_id)
+                        if loaded:
+                            st.session_state.gen_case_id = loaded["id"]
+                            st.session_state.gen_case_type = loaded["case_type"]
+                            st.session_state.gen_metadata = loaded["metadata"]
+                            st.session_state.gen_intent = loaded["intent"]
+                            st.session_state.gen_sources = loaded["sources"]
+                            st.session_state.gen_processed = loaded["processed"]
+                            st.session_state.gen_sections = loaded["sections"]
+                            st.session_state.gen_compliance = loaded["compliance"]
+                            st.session_state.gen_teaching_note = loaded["teaching_note"]
+                            st.session_state.gen_step = 6 if loaded["sections"] else 5 if loaded["processed"] else 4
+                            st.rerun()
+            else:
+                st.caption("No drafts saved yet.")
 
         st.markdown("---")
 
@@ -1034,11 +1127,11 @@ if st.session_state.get("active_tool") is None and st.session_state.logged_in:
 
     st.markdown("---")
 
-    tool_col1, tool_col2 = st.columns(2)
-    
+    tool_col1, tool_col2, tool_col3 = st.columns(3)
+
     with tool_col1:
         st.markdown("""
-        <div class="card" style="min-height: 280px;">
+        <div class="card" style="min-height: 320px;">
             <h3 style="color: #1E3A8A; margin-top: 0;">Case Study Analyser</h3>
             <p>Evaluate case studies against the CBC-India AGK Case Study Review Rubric. Upload your case study and teaching note documents, and the AI will assess them across four weighted areas — Structure, Language, Alignment, and Effectiveness — generating a detailed scoring report with recommendations.</p>
         </div>
@@ -1047,16 +1140,28 @@ if st.session_state.get("active_tool") is None and st.session_state.logged_in:
             st.session_state.active_tool = "analyser"
             st.session_state.sidebar_tab = "New Assessment"
             st.rerun()
-    
+
     with tool_col2:
         st.markdown(f"""
-        <div class="card" style="min-height: 280px;">
+        <div class="card" style="min-height: 320px;">
             <h3 style="color: #1E3A8A; margin-top: 0;">CaseConnect</h3>
             <p>Discover relevant governance case studies from the AGK repository for your teaching programme. Upload your course outline and answer a short questionnaire — the tool will recommend cases aligned with your course design, competencies, and sector. Currently referencing {CASE_COUNT} case studies.</p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Get Started — CaseConnect", key="start_caseconnect", use_container_width=True):
             st.session_state.active_tool = "caseconnect"
+            st.rerun()
+
+    with tool_col3:
+        st.markdown("""
+        <div class="card" style="min-height: 320px;">
+            <h3 style="color: #1E3A8A; margin-top: 0;">Case Study Generator</h3>
+            <p>Draft a case study from raw source material — interviews, reports, websites and notes. Choose between Lesson-Drawing, Decision-Forcing or Caselet formats; the tool builds the chronology, stakeholder map and dilemma, drafts each section against the AGK template, runs language and structure checks, and offers an optional teaching note.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Get Started — Case Study Generator", key="start_generator", use_container_width=True):
+            st.session_state.active_tool = "generator"
+            st.session_state.gen_step = 1
             st.rerun()
 
 elif st.session_state.get("active_tool") == "caseconnect" and st.session_state.logged_in:
@@ -1193,6 +1298,673 @@ elif st.session_state.get("active_tool") == "caseconnect" and st.session_state.l
             st.markdown("---")
             st.header("Additional Notes")
             st.write(additional)
+
+elif st.session_state.get("active_tool") == "generator" and st.session_state.logged_in:
+    # ------------------------------------------------------------------
+    # Case Study Generator — multi-step wizard
+    # ------------------------------------------------------------------
+    GEN_STEP_LABELS = [
+        "1. Choose case type",
+        "2. Case metadata",
+        "3. Upload sources",
+        "4. Narrative intent",
+        "5. Source processing",
+        "6. Draft sections",
+        "7. Compliance review",
+        "8. Teaching note & export",
+    ]
+    st.markdown(
+        " · ".join(
+            f"**{lbl}**" if (i + 1) == st.session_state.gen_step else lbl
+            for i, lbl in enumerate(GEN_STEP_LABELS)
+        )
+    )
+    st.markdown("---")
+
+    def _gen_persist():
+        """Persist the in-progress draft to the database (best-effort)."""
+        if not st.session_state.user_id:
+            return
+        try:
+            cid = save_generated_case(
+                user_id=st.session_state.user_id,
+                case_id=st.session_state.gen_case_id,
+                title=(st.session_state.gen_metadata or {}).get("title") or "Untitled",
+                case_type=st.session_state.gen_case_type,
+                metadata=st.session_state.gen_metadata,
+                intent=st.session_state.gen_intent,
+                sources=st.session_state.gen_sources,
+                processed=st.session_state.gen_processed,
+                sections=st.session_state.gen_sections,
+                compliance=st.session_state.gen_compliance,
+                teaching_note=st.session_state.gen_teaching_note,
+            )
+            if cid:
+                st.session_state.gen_case_id = cid
+        except Exception as e:
+            st.warning(f"Could not auto-save draft: {e}")
+
+    def _gen_nav(prev_to=None, next_to=None, next_label="Next →"):
+        cols = st.columns([1, 1, 4])
+        with cols[0]:
+            if prev_to is not None and st.button("← Back", key=f"gen_back_{st.session_state.gen_step}"):
+                st.session_state.gen_step = prev_to
+                st.rerun()
+        with cols[1]:
+            if next_to is not None and st.button(next_label, key=f"gen_next_{st.session_state.gen_step}"):
+                _gen_persist()
+                st.session_state.gen_step = next_to
+                st.rerun()
+
+    # ----- Step 1: case type ---------------------------------------------
+    if st.session_state.gen_step == 1:
+        st.header("Step 1 — Choose the type of case study")
+        st.write("Select the format that best matches what you want to write. You can change later, but the structure and word-count rules differ.")
+
+        for ctype, meta in CASE_TYPES.items():
+            with st.container():
+                st.subheader(meta["label"])
+                st.write(meta["description"])
+                st.caption(f"Word count: {meta['word_min']:,} – {meta['word_max']:,}")
+                if st.button(f"Choose {meta['label']}", key=f"choose_{ctype}"):
+                    st.session_state.gen_case_type = ctype
+                    if not st.session_state.gen_metadata.get("word_target"):
+                        st.session_state.gen_metadata["word_target"] = meta["default_target"]
+                    st.session_state.gen_step = 2
+                    st.rerun()
+                st.markdown("---")
+
+    # ----- Step 2: metadata ----------------------------------------------
+    elif st.session_state.gen_step == 2:
+        st.header("Step 2 — Case metadata")
+        st.write("Provide the basic facts that anchor the case.")
+        ctype = st.session_state.gen_case_type
+        meta = st.session_state.gen_metadata or {}
+        ctype_meta = CASE_TYPES[ctype]
+
+        with st.form("gen_metadata_form"):
+            title = st.text_input("Case title", value=meta.get("title", ""))
+            authors = st.text_input("Author(s)", value=meta.get("authors", ""))
+            initiative = st.text_input("Initiative or programme name", value=meta.get("initiative", ""))
+            region = st.text_input("Country / state / region", value=meta.get("region", ""))
+            sector = st.text_input("Sector or theme", value=meta.get("sector", ""))
+            protagonist = st.text_input("Primary protagonist (name and role)", value=meta.get("protagonist", ""))
+            stakeholders = st.text_area(
+                "Other key stakeholders (one per line or comma-separated)",
+                value=meta.get("stakeholders", ""),
+                height=80,
+            )
+            time_period = st.text_input("Time period covered (e.g., 2018-2024)", value=meta.get("time_period", ""))
+            audience = st.text_input("Intended teaching audience", value=meta.get("audience", ""))
+            word_target = st.number_input(
+                f"Target word count (recommended {ctype_meta['word_min']}–{ctype_meta['word_max']})",
+                min_value=int(ctype_meta["word_min"] * 0.5),
+                max_value=int(ctype_meta["word_max"] * 1.5),
+                value=int(meta.get("word_target") or ctype_meta["default_target"]),
+                step=100,
+            )
+            competencies = st.text_input(
+                "Competency to align with (optional, free text)",
+                value=meta.get("competencies", ""),
+            )
+            teaching_note = st.checkbox(
+                "Generate a teaching note alongside the case",
+                value=bool(meta.get("teaching_note", True)),
+            )
+            saved = st.form_submit_button("Save and continue →")
+
+        if saved:
+            st.session_state.gen_metadata = {
+                "title": title.strip(),
+                "authors": authors.strip(),
+                "initiative": initiative.strip(),
+                "region": region.strip(),
+                "sector": sector.strip(),
+                "protagonist": protagonist.strip(),
+                "stakeholders": stakeholders.strip(),
+                "time_period": time_period.strip(),
+                "audience": audience.strip(),
+                "word_target": int(word_target),
+                "competencies": competencies.strip(),
+                "teaching_note": bool(teaching_note),
+            }
+            _gen_persist()
+            st.session_state.gen_step = 3
+            st.rerun()
+
+        _gen_nav(prev_to=1, next_to=None)
+
+    # ----- Step 3: source upload -----------------------------------------
+    elif st.session_state.gen_step == 3:
+        st.header("Step 3 — Upload source material")
+        st.write(
+            "Upload every source you want the AI to draw on: interview transcripts, reports, "
+            "news articles, briefs and your own author notes. The tool only writes from these sources."
+        )
+
+        uploaded = st.file_uploader(
+            "Upload files (PDF or DOCX). You may upload several.",
+            type=["pdf", "docx"],
+            accept_multiple_files=True,
+            key="gen_source_uploader",
+        )
+
+        if uploaded:
+            existing_names = {s["name"] for s in st.session_state.gen_sources}
+            for f in uploaded:
+                if f.name in existing_names:
+                    continue
+                try:
+                    if f.type == "application/pdf":
+                        text = extract_text_from_pdf(f)
+                    else:
+                        text = extract_text_from_docx(f)
+                except Exception as e:
+                    st.error(f"Could not read {f.name}: {e}")
+                    continue
+                st.session_state.gen_sources.append({
+                    "name": f.name,
+                    "type": "Uploaded document",
+                    "speaker": "",
+                    "date": "",
+                    "text": text,
+                })
+            _gen_persist()
+
+        with st.expander("Add a source by pasting text (URL content, raw notes, transcripts)"):
+            with st.form("gen_paste_source", clear_on_submit=True):
+                ps_name = st.text_input("Source label", placeholder="e.g., Interview with VPA Chairman, March 2024")
+                ps_type = st.selectbox(
+                    "Source type",
+                    ["Interview transcript", "Report", "News article", "Website / URL", "Author notes", "Other"],
+                )
+                ps_speaker = st.text_input("Speaker / author / publication")
+                ps_date = st.text_input("Date (as known)")
+                ps_text = st.text_area("Paste source text", height=200)
+                added = st.form_submit_button("Add source")
+            if added and ps_text.strip():
+                st.session_state.gen_sources.append({
+                    "name": ps_name or f"Source {len(st.session_state.gen_sources)+1}",
+                    "type": ps_type,
+                    "speaker": ps_speaker,
+                    "date": ps_date,
+                    "text": ps_text.strip(),
+                })
+                _gen_persist()
+                st.success("Source added.")
+                st.rerun()
+
+        if st.session_state.gen_sources:
+            st.subheader("Source bundle")
+            for i, s in enumerate(st.session_state.gen_sources):
+                with st.expander(f"Source {i+1}: {s['name']}  ·  {len(s.get('text','')):,} chars"):
+                    cols = st.columns(4)
+                    with cols[0]:
+                        s["type"] = st.text_input("Type", value=s.get("type", ""), key=f"st_type_{i}")
+                    with cols[1]:
+                        s["speaker"] = st.text_input("Speaker / author", value=s.get("speaker", ""), key=f"st_sp_{i}")
+                    with cols[2]:
+                        s["date"] = st.text_input("Date", value=s.get("date", ""), key=f"st_dt_{i}")
+                    with cols[3]:
+                        if st.button("Remove", key=f"st_rm_{i}"):
+                            st.session_state.gen_sources.pop(i)
+                            _gen_persist()
+                            st.rerun()
+                    st.text_area("Preview", value=s.get("text", "")[:3000], height=180, key=f"st_prev_{i}", disabled=True)
+
+        else:
+            st.info("Add at least one source before continuing.")
+
+        _gen_nav(prev_to=2, next_to=4 if st.session_state.gen_sources else None)
+
+    # ----- Step 4: narrative intent --------------------------------------
+    elif st.session_state.gen_step == 4:
+        st.header("Step 4 — Tell us what story you want to tell")
+        st.write(
+            "These answers shape the dilemma statement and the narrative arc. Be specific. "
+            "Anything you write here is treated as author guidance, not as factual claims."
+        )
+        intent = st.session_state.gen_intent or {}
+
+        with st.form("gen_intent_form"):
+            central = st.text_area("What is the central problem the case explores?", value=intent.get("central_problem", ""), height=80)
+            dilemma = st.text_area("What is the dilemma or tension at the heart of the case?", value=intent.get("dilemma", ""), height=80)
+            went_well = st.text_area("What went well?", value=intent.get("went_well", ""), height=80)
+            did_not = st.text_area("What did not go as expected?", value=intent.get("did_not_go", ""), height=80)
+            key_lesson = st.text_area("If the reader takes away one lesson, what should it be?", value=intent.get("key_lesson", ""), height=80)
+            opening = st.text_area("Preferred opening scene or hook (optional)", value=intent.get("opening_scene", ""), height=80)
+            saved = st.form_submit_button("Save and continue →")
+
+        if saved:
+            st.session_state.gen_intent = {
+                "central_problem": central.strip(),
+                "dilemma": dilemma.strip(),
+                "went_well": went_well.strip(),
+                "did_not_go": did_not.strip(),
+                "key_lesson": key_lesson.strip(),
+                "opening_scene": opening.strip(),
+            }
+            _gen_persist()
+            st.session_state.gen_step = 5
+            st.rerun()
+
+        _gen_nav(prev_to=3, next_to=None)
+
+    # ----- Step 5: source processing -------------------------------------
+    elif st.session_state.gen_step == 5:
+        st.header("Step 5 — Source processing")
+        st.write(
+            "The tool reads your sources and builds an inventory of what each one contains, a "
+            "chronological timeline, a stakeholder map and a draft of the central dilemma. "
+            "Review and edit before drafting begins."
+        )
+
+        if not st.session_state.gen_processed or st.button("Re-run source processing", key="gen_reprocess"):
+            with st.spinner("Reading sources, building chronology, stakeholder map and dilemma..."):
+                try:
+                    st.session_state.gen_processed = run_source_processing(
+                        st.session_state.gen_sources,
+                        st.session_state.gen_metadata,
+                        st.session_state.gen_intent,
+                        st.session_state.gen_case_type,
+                    )
+                    _gen_persist()
+                except GeneratorAPIError as e:
+                    st.error(f"Source processing failed: {e}")
+                    st.stop()
+                except Exception as e:
+                    st.error(f"Source processing failed unexpectedly: {e}")
+                    st.stop()
+
+        proc = st.session_state.gen_processed or {}
+
+        with st.expander("Source inventory", expanded=False):
+            inv_items = (proc.get("inventory") or {}).get("inventory", [])
+            if inv_items:
+                df_rows = []
+                for item in inv_items:
+                    df_rows.append({
+                        "Source": item.get("source_index", ""),
+                        "Type": item.get("source_type", ""),
+                        "Author / speaker": item.get("speaker_or_author", ""),
+                        "Key facts": " · ".join(item.get("key_facts", []) or []),
+                        "Direct quotes": len(item.get("direct_quotes", []) or []),
+                        "Events extracted": len(item.get("events", []) or []),
+                    })
+                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No inventory generated.")
+
+        with st.expander("Chronology", expanded=True):
+            chrono = (proc.get("chronology") or {}).get("chronology", [])
+            if chrono:
+                df_rows = []
+                for c in chrono:
+                    df_rows.append({
+                        "Date": c.get("approx_date", ""),
+                        "Event": c.get("event", ""),
+                        "Actor": c.get("actor", ""),
+                        "Outcome": c.get("outcome", ""),
+                        "Sources": ", ".join(str(s) for s in (c.get("source_index") or [])),
+                    })
+                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No chronology extracted.")
+            gaps = (proc.get("chronology") or {}).get("gaps", [])
+            if gaps:
+                st.warning("Gaps in the source material:")
+                for g in gaps:
+                    st.write(f"- {g}")
+
+        with st.expander("Stakeholder map", expanded=False):
+            sks = (proc.get("stakeholders") or {}).get("stakeholders", [])
+            if sks:
+                df_rows = []
+                for s in sks:
+                    df_rows.append({
+                        "Name": s.get("name", ""),
+                        "Designation": s.get("designation", ""),
+                        "Side": s.get("side", ""),
+                        "Perspective": s.get("perspective", ""),
+                        "Tensions": s.get("tensions", ""),
+                    })
+                st.dataframe(pd.DataFrame(df_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No stakeholders extracted.")
+
+        st.subheader("Central dilemma — review and edit")
+        existing = (proc.get("dilemma") or {}).get("dilemma_statement", "")
+        edited_dilemma = st.text_area(
+            "Dilemma statement",
+            value=existing,
+            height=160,
+            help="This statement will anchor the entire case. Edit freely.",
+        )
+        if edited_dilemma != existing:
+            proc.setdefault("dilemma", {})["dilemma_statement"] = edited_dilemma
+            st.session_state.gen_processed = proc
+            _gen_persist()
+
+        _gen_nav(prev_to=4, next_to=6, next_label="Continue to drafting →")
+
+    # ----- Step 6: draft sections ----------------------------------------
+    elif st.session_state.gen_step == 6:
+        ctype = st.session_state.gen_case_type
+        st.header("Step 6 — Draft the case")
+        st.write(
+            "Generate each section in order. After every section is generated, scroll down and "
+            "review it. Use 'Regenerate' with feedback to refine."
+        )
+
+        sections_meta = CASE_TYPES[ctype]["sections"]
+        if ctype == "caselet":
+            st.subheader("Caselet draft")
+            existing = (st.session_state.gen_sections.get("caselet") or {}).get("text", "")
+            feedback = st.text_input("Optional feedback for regeneration", key="caselet_fb")
+            if st.button("Generate / regenerate caselet", key="gen_caselet_btn"):
+                with st.spinner("Drafting caselet..."):
+                    try:
+                        text = draft_caselet(
+                            st.session_state.gen_metadata,
+                            st.session_state.gen_intent,
+                            st.session_state.gen_sources,
+                            st.session_state.gen_processed,
+                            author_feedback=feedback,
+                        )
+                        st.session_state.gen_sections["caselet"] = {"text": text}
+                        _gen_persist()
+                        st.rerun()
+                    except GeneratorAPIError as e:
+                        st.error(f"Caselet drafting failed: {e}")
+                    except Exception as e:
+                        st.error(f"Caselet drafting failed unexpectedly: {e}")
+            if existing:
+                st.text_area("Caselet text (editable)", value=existing, height=500, key="caselet_edit_box")
+                if st.button("Save edits", key="caselet_save_edits"):
+                    st.session_state.gen_sections["caselet"] = {"text": st.session_state.caselet_edit_box}
+                    _gen_persist()
+                    st.success("Saved.")
+        else:
+            for sid, sname in sections_meta:
+                with st.expander(f"{sname}", expanded=not st.session_state.gen_sections.get(sid)):
+                    sec = st.session_state.gen_sections.get(sid, {})
+                    existing = sec.get("text", "")
+                    fb_key = f"fb_{sid}"
+                    feedback = st.text_input("Optional feedback for regeneration", key=fb_key, value=sec.get("feedback", ""))
+                    if st.button(("Regenerate " if existing else "Generate ") + sname, key=f"btn_{sid}"):
+                        with st.spinner(f"Drafting {sname}..."):
+                            try:
+                                text = draft_case_section(
+                                    ctype,
+                                    sid,
+                                    st.session_state.gen_metadata,
+                                    st.session_state.gen_intent,
+                                    st.session_state.gen_sources,
+                                    st.session_state.gen_processed,
+                                    previous_sections=st.session_state.gen_sections,
+                                    author_feedback=feedback,
+                                )
+                            except Exception as e:
+                                st.error(f"Drafting failed: {e}")
+                                text = existing
+                        st.session_state.gen_sections[sid] = {"text": text, "feedback": feedback}
+                        _gen_persist()
+                        st.rerun()
+                    if existing:
+                        word_count = len(re.findall(r"\b\w+\b", existing))
+                        st.caption(f"Word count: {word_count}")
+                        edit_key = f"edit_{sid}"
+                        st.text_area("Section text (editable)", value=existing, height=320, key=edit_key)
+                        if st.button("Save edits", key=f"save_{sid}"):
+                            st.session_state.gen_sections[sid] = {
+                                "text": st.session_state[edit_key],
+                                "feedback": feedback,
+                            }
+                            _gen_persist()
+                            st.success("Saved.")
+
+        # Gate progression: every defined section must have non-empty text.
+        required_sids = [sid for sid, _ in sections_meta]
+        sections_complete = all(
+            (st.session_state.gen_sections.get(sid) or {}).get("text", "").strip()
+            for sid in required_sids
+        )
+        if not sections_complete:
+            missing = [
+                sname for sid, sname in sections_meta
+                if not (st.session_state.gen_sections.get(sid) or {}).get("text", "").strip()
+            ]
+            st.warning("Generate every section before continuing. Outstanding: " + ", ".join(missing))
+        _gen_nav(prev_to=5, next_to=7 if sections_complete else None,
+                 next_label="Continue to compliance review →")
+
+    # ----- Step 7: compliance review -------------------------------------
+    elif st.session_state.gen_step == 7:
+        st.header("Step 7 — Compliance review")
+        st.write(
+            "Run automated checks on the full draft for British English, tense, adjectives, em-dashes, "
+            "neutrality, structure, factual traceability, abbreviations and word count."
+        )
+
+        if not st.session_state.gen_compliance or st.button("Re-run compliance checks", key="rerun_compliance"):
+            with st.spinner("Running compliance passes..."):
+                try:
+                    st.session_state.gen_compliance = run_compliance_passes(
+                        st.session_state.gen_case_type,
+                        st.session_state.gen_sections,
+                        st.session_state.gen_metadata,
+                        st.session_state.gen_sources,
+                    )
+                    _gen_persist()
+                except GeneratorAPIError as e:
+                    st.error(f"Compliance review failed: {e}")
+                    st.stop()
+                except Exception as e:
+                    st.error(f"Compliance review failed unexpectedly: {e}")
+                    st.stop()
+
+        comp = st.session_state.gen_compliance or {}
+        m_cols = st.columns(3)
+        m_cols[0].metric("Word count", f"{comp.get('word_count', 0):,}")
+        m_cols[1].metric("Target", f"{comp.get('target', 0):,}")
+        findings = comp.get("findings", [])
+        m_cols[2].metric("Findings", len(findings))
+
+        if findings:
+            st.subheader("Findings")
+            df = pd.DataFrame([
+                {
+                    "Type": f.get("type", ""),
+                    "Section": f.get("section", ""),
+                    "Severity": f.get("severity", ""),
+                    "Original": f.get("original_text", ""),
+                    "Suggestion": f.get("suggestion", ""),
+                    "Explanation": f.get("explanation", ""),
+                }
+                for f in findings
+            ])
+            sev_colors = {"High": "#dc3545", "Medium": "#ffc107", "Low": "#6c757d"}
+
+            def _style_sev(v):
+                c = sev_colors.get(v)
+                return f"color: white; background-color: {c};" if c else ""
+
+            try:
+                styled = df.style.applymap(_style_sev, subset=["Severity"])
+                st.dataframe(styled, use_container_width=True, hide_index=True, height=min(500, 60 + len(df) * 35))
+            except Exception:
+                st.dataframe(df, use_container_width=True, hide_index=True, height=min(500, 60 + len(df) * 35))
+        else:
+            st.success("No issues flagged.")
+
+        with st.expander("Suggested abbreviations", expanded=False):
+            abbrevs = comp.get("abbreviations") or []
+            if abbrevs:
+                st.dataframe(pd.DataFrame(abbrevs), use_container_width=True, hide_index=True)
+            else:
+                st.info("None suggested.")
+
+        with st.expander("Suggested footnotes", expanded=False):
+            fns = comp.get("footnotes") or []
+            if fns:
+                for f in fns:
+                    st.markdown(f"**{f.get('term', '')}** — {f.get('footnote_text', '')}")
+            else:
+                st.info("None suggested.")
+
+        with st.expander("References", expanded=False):
+            refs = comp.get("references") or []
+            if refs:
+                for r in refs:
+                    st.write(f"- {r}")
+            else:
+                st.info("None compiled.")
+
+        # Gate progression: compliance must have been run.
+        compliance_run = bool(st.session_state.gen_compliance)
+        if not compliance_run:
+            st.warning("Run the compliance checks before continuing.")
+        _gen_nav(prev_to=6, next_to=8 if compliance_run else None,
+                 next_label="Continue to teaching note & export →")
+
+    # ----- Step 8: teaching note & export --------------------------------
+    elif st.session_state.gen_step == 8:
+        st.header("Step 8 — Teaching note and export")
+        ctype = st.session_state.gen_case_type
+        meta = st.session_state.gen_metadata or {}
+
+        if meta.get("teaching_note", True):
+            st.subheader("Teaching note")
+            if not st.session_state.gen_teaching_note or st.button("Regenerate teaching note", key="regen_tn"):
+                with st.spinner("Generating teaching note (AGK template, 12.1-12.7)..."):
+                    try:
+                        st.session_state.gen_teaching_note = generate_teaching_note(
+                            ctype,
+                            st.session_state.gen_sections,
+                            st.session_state.gen_metadata,
+                            st.session_state.gen_sources,
+                            st.session_state.gen_processed,
+                        )
+                        _gen_persist()
+                    except GeneratorAPIError as e:
+                        st.error(f"Teaching note generation failed: {e}")
+                    except Exception as e:
+                        st.error(f"Teaching note generation failed unexpectedly: {e}")
+            tn = st.session_state.gen_teaching_note or {}
+            if tn.get("case_summary"):
+                st.markdown(f"**Case summary**\n\n{tn['case_summary']}")
+            if tn.get("learning_objectives"):
+                st.markdown("**Learning objectives**")
+                for lo in tn["learning_objectives"]:
+                    st.write(f"- {lo}")
+            if tn.get("teaching_strategy"):
+                with st.expander("Teaching strategy", expanded=False):
+                    st.write(tn["teaching_strategy"])
+            if tn.get("discussion_questions"):
+                with st.expander("Discussion questions with answers", expanded=False):
+                    for i, dq in enumerate(tn["discussion_questions"], 1):
+                        st.markdown(f"**Q{i}.** {dq.get('question', '')}")
+                        st.write(dq.get("answer_guide", ""))
+                        st.markdown("---")
+            if tn.get("assessment_methodology"):
+                with st.expander("Assessment methodology", expanded=False):
+                    st.write(tn["assessment_methodology"])
+            if tn.get("target_audience_and_domains"):
+                with st.expander("Target audience and subject domains", expanded=False):
+                    st.write(tn["target_audience_and_domains"])
+            if tn.get("additional_resources"):
+                with st.expander("Additional teaching resources", expanded=False):
+                    for r in tn["additional_resources"]:
+                        st.markdown(f"- **{r.get('title', '')}** ({r.get('source', '')}) — {r.get('relevance', '')}")
+        else:
+            st.info("Teaching note generation was disabled in metadata.")
+
+        st.markdown("---")
+        st.subheader("Download")
+
+        try:
+            docx_bytes = build_case_docx(
+                ctype,
+                st.session_state.gen_metadata,
+                st.session_state.gen_sections,
+                compliance=st.session_state.gen_compliance,
+            )
+        except Exception as e:
+            docx_bytes = None
+            st.error(f"DOCX export failed: {e}")
+        try:
+            pdf_bytes = build_case_pdf(
+                ctype,
+                st.session_state.gen_metadata,
+                st.session_state.gen_sections,
+                compliance=st.session_state.gen_compliance,
+            )
+        except Exception as e:
+            pdf_bytes = None
+            st.error(f"PDF export failed: {e}")
+
+        title_for_file = re.sub(r"[^A-Za-z0-9_-]+", "_", (meta.get("title") or "case_study"))[:60] or "case_study"
+
+        cols = st.columns(3)
+        if docx_bytes:
+            cols[0].download_button(
+                "Download case (DOCX)",
+                data=docx_bytes,
+                file_name=f"{title_for_file}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+        if pdf_bytes:
+            cols[1].download_button(
+                "Download case (PDF)",
+                data=pdf_bytes,
+                file_name=f"{title_for_file}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        if st.session_state.gen_teaching_note:
+            try:
+                tn_docx = build_teaching_note_docx(
+                    st.session_state.gen_metadata,
+                    st.session_state.gen_teaching_note,
+                    ctype,
+                )
+                cols[2].download_button(
+                    "Download teaching note (DOCX)",
+                    data=tn_docx,
+                    file_name=f"{title_for_file}_teaching_note.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                cols[2].error(f"Teaching note export failed: {e}")
+
+        st.markdown("---")
+        if st.button("Mark as finalised and save", key="gen_finalise"):
+            try:
+                cid = save_generated_case(
+                    user_id=st.session_state.user_id,
+                    case_id=st.session_state.gen_case_id,
+                    title=meta.get("title") or "Untitled",
+                    case_type=ctype,
+                    status="finalised",
+                    metadata=st.session_state.gen_metadata,
+                    intent=st.session_state.gen_intent,
+                    sources=st.session_state.gen_sources,
+                    processed=st.session_state.gen_processed,
+                    sections=st.session_state.gen_sections,
+                    compliance=st.session_state.gen_compliance,
+                    teaching_note=st.session_state.gen_teaching_note,
+                )
+                if cid:
+                    st.session_state.gen_case_id = cid
+                    st.success("Saved as finalised.")
+                else:
+                    st.error("Could not save.")
+            except Exception as e:
+                st.error(f"Save failed: {e}")
+
+        _gen_nav(prev_to=7, next_to=None)
 
 elif st.session_state.get("active_tool") == "analyser" and st.session_state.case_study_text:
     # Document info section

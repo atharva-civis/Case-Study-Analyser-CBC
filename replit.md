@@ -2,16 +2,22 @@
 
 ## Overview
 
-The CBC-India AGK Case Study Suite is a Streamlit-based web application providing two AI-powered tools:
+The CBC-India AGK Case Study Suite is a Streamlit-based web application providing three AI-powered tools:
 
 1. **Case Study Analyser**: Evaluates case studies against the CBC-India AGK Case Study Review Rubric across four weighted assessment areas (Structure/Chronology, Language/Citations, Alignment with Teaching Notes, Overall Effectiveness). Uses OpenAI's API to analyze uploaded documents (PDF/DOCX), generates detailed scoring reports with recommendations, and maintains assessment history through a PostgreSQL database.
 
 2. **CaseConnect**: An AI-enabled case discovery tool that recommends AGK repository case studies to faculty based on course outlines and a questionnaire about learners, objectives, competencies (KCM), duration, and sector. References the AGK case database CSV file (62 cases with title, description, full case text, and iGOT platform links) for matching. Each recommendation includes discussion points, key themes, and a "Go to Case Study on iGOT" button linking directly to the iGOT Karmayogi platform.
 
+3. **Case Study Generator**: Drafts a new case study from raw source material (interview transcripts, reports, news articles, pasted URL content, author notes). Supports three case types per the Case_Study_Generator_Prompts_v2 spec — Lesson-Drawing (3,000–7,000 words, 7 sections), Decision-Forcing (2,500–5,000 words, 7 sections including a dilemma cliff-hanger), and Caselet (under 2,000 words, single block). Eight-step wizard: choose case type → metadata → upload sources → narrative intent → AI source processing (inventory/chronology/stakeholder map/dilemma) → section drafting → compliance review (British English/past tense/neutrality/word-count) → optional teaching note + DOCX/PDF export. Drafts auto-persist to PostgreSQL and can be resumed from the sidebar.
+
 ### App Structure
-- **Landing Page** (`active_tool = None`): Shows Assessment Framework overview + two tool cards with "Get Started" buttons
+- **Landing Page** (`active_tool = None`): Shows Assessment Framework overview + three tool cards with "Get Started" buttons
 - **Case Study Analyser** (`active_tool = "analyser"`): Sidebar with New Assessment / History tabs + document upload; main area shows assessment results
 - **CaseConnect** (`active_tool = "caseconnect"`): Sidebar with optional curriculum upload; main area shows 5-question form and AI-generated case recommendations
+- **Case Study Generator** (`active_tool = "generator"`): Sidebar lists saved drafts; main area runs the 8-step wizard driven by `gen_step` session state
+
+### Recent Updates (April 2026)
+- **Case Study Generator (NEW)**: Third tool added alongside Analyser and CaseConnect. Implements Case_Study_Generator_Prompts_v2 (Lesson-Drawing / Decision-Forcing / Caselet) end-to-end. Lives in `case_generator.py` (master system prompt, source-processing pipeline, per-section drafting prompts, compliance passes, teaching note generator, DOCX/PDF builders). New `generated_cases` PostgreSQL table + ownership-enforced CRUD helpers in `db_models.py` (`save_generated_case`, `get_user_generated_cases`, `get_generated_case(case_id, user_id)`, `delete_generated_case`). UI is an 8-step wizard in `app.py` keyed off `gen_step` session state with auto-persist after every step, sidebar draft loader, and DOCX/PDF download buttons at the end. AI calls go through `_call_json` / `_call_text` which raise `GeneratorAPIError` on transport or JSON-parse failures so the wizard surfaces explicit errors instead of silently producing empty artefacts. Step transitions 6→7 and 7→8 are gated on having all sections drafted and compliance run.
 
 ### Recent Updates (March 2026)
 - **CaseConnect Tool**: New AI case discovery feature — 5-question questionnaire (learners, objective, KCM competencies, duration, sector), optional curriculum upload, AGK case database matching, results with case recommendations, module suggestions, and teaching strategy. Case database switched from PDF (regex parsing) to XLSX (pandas/openpyxl structured read) to CSV (with full case text + iGOT links) for reliable title/description extraction. Upgraded to rich CSV with 62 cases including full case text and iGOT platform links; AI prompt redesigned for specific, grounded recommendations referencing actual case protagonists, challenges, and outcomes; each recommendation now includes key themes badges, classroom discussion points, and "Go to Case Study on iGOT" button.

@@ -53,6 +53,26 @@ class User(Base):
     def get_password_hash(cls, password):
         return bcrypt_sha256.hash(password)
 
+# Define GeneratedCase model — stores per-author Case Study Generator drafts
+class GeneratedCase(Base):
+    __tablename__ = "generated_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)
+    case_type = Column(String)
+    status = Column(String, default="draft")  # draft | finalised
+    metadata_json = Column(Text)        # intake metadata (1.1) + competency
+    intent_json = Column(Text)          # narrative intent answers (1.3)
+    sources_json = Column(Text)         # list of {name,type,speaker,date,text}
+    processed_json = Column(Text)       # source inventory / chronology / stakeholders / dilemma
+    sections_json = Column(Text)        # per-section draft text
+    compliance_json = Column(Text)      # findings + abbreviations + footnotes + refs
+    teaching_note_json = Column(Text)   # generated teaching note
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # Define AssessmentHistory model
 class AssessmentHistory(Base):
     __tablename__ = "assessment_history"
@@ -231,6 +251,165 @@ def get_assessment(assessment_id):
     finally:
         if 'db' in locals():
             db.close()
+
+
+# ---------------------------------------------------------------------------
+# Generated case (Case Study Generator) helpers
+# ---------------------------------------------------------------------------
+
+def _dump(obj):
+    if obj is None:
+        return None
+    try:
+        return json.dumps(obj, default=str)
+    except (TypeError, ValueError):
+        return json.dumps({})
+
+
+def _load(text):
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def save_generated_case(user_id, case_id=None, **fields):
+    """Create or update a GeneratedCase row. Returns its ID, or None on error.
+
+    Allowed fields: title, case_type, status, metadata, intent, sources,
+    processed, sections, compliance, teaching_note.
+    """
+    json_field_map = {
+        "metadata": "metadata_json",
+        "intent": "intent_json",
+        "sources": "sources_json",
+        "processed": "processed_json",
+        "sections": "sections_json",
+        "compliance": "compliance_json",
+        "teaching_note": "teaching_note_json",
+    }
+
+    try:
+        db = get_db()
+        if case_id:
+            # Enforce ownership: callers may only update their own rows.
+            case = (
+                db.query(GeneratedCase)
+                .filter(
+                    GeneratedCase.id == case_id,
+                    GeneratedCase.user_id == user_id,
+                )
+                .first()
+            )
+            if not case:
+                return None
+        else:
+            case = GeneratedCase(user_id=user_id)
+            db.add(case)
+
+        for key, value in fields.items():
+            if key in json_field_map:
+                setattr(case, json_field_map[key], _dump(value))
+            elif key == "user_id":
+                # never allow caller to reassign ownership through fields
+                continue
+            elif hasattr(case, key):
+                setattr(case, key, value)
+
+        db.commit()
+        db.refresh(case)
+        return case.id
+    except Exception as e:
+        print(f"Database error in save_generated_case: {str(e)}")
+        if 'db' in locals():
+            db.rollback()
+        return None
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
+def get_user_generated_cases(user_id):
+    try:
+        db = get_db()
+        cases = (
+            db.query(GeneratedCase)
+            .filter(GeneratedCase.user_id == user_id)
+            .order_by(GeneratedCase.updated_at.desc())
+            .all()
+        )
+        return list(cases)
+    except Exception as e:
+        print(f"Database error in get_user_generated_cases: {str(e)}")
+        return []
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
+def get_generated_case(case_id, user_id):
+    """Fetch a single generated case. Ownership is enforced — returns None if
+    the case does not belong to ``user_id``."""
+    try:
+        db = get_db()
+        case = (
+            db.query(GeneratedCase)
+            .filter(
+                GeneratedCase.id == case_id,
+                GeneratedCase.user_id == user_id,
+            )
+            .first()
+        )
+        if not case:
+            return None
+        # Hydrate plain dict so callers don't depend on the closed session.
+        return {
+            "id": case.id,
+            "user_id": case.user_id,
+            "title": case.title,
+            "case_type": case.case_type,
+            "status": case.status,
+            "metadata": _load(case.metadata_json) or {},
+            "intent": _load(case.intent_json) or {},
+            "sources": _load(case.sources_json) or [],
+            "processed": _load(case.processed_json) or {},
+            "sections": _load(case.sections_json) or {},
+            "compliance": _load(case.compliance_json) or {},
+            "teaching_note": _load(case.teaching_note_json) or {},
+            "created_at": case.created_at,
+            "updated_at": case.updated_at,
+        }
+    except Exception as e:
+        print(f"Database error in get_generated_case: {str(e)}")
+        return None
+    finally:
+        if 'db' in locals():
+            db.close()
+
+
+def delete_generated_case(case_id, user_id):
+    try:
+        db = get_db()
+        case = db.query(GeneratedCase).filter(
+            GeneratedCase.id == case_id,
+            GeneratedCase.user_id == user_id,
+        ).first()
+        if not case:
+            return False
+        db.delete(case)
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"Database error in delete_generated_case: {str(e)}")
+        if 'db' in locals():
+            db.rollback()
+        return False
+    finally:
+        if 'db' in locals():
+            db.close()
+
 
 # Streamlit session state utilities
 def initialize_session_state():
