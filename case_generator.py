@@ -21,6 +21,7 @@ for deterministic output, mirroring the writing assistant pattern.
 """
 
 import json
+import os
 import re
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
@@ -512,6 +513,20 @@ Preferred opening cue from the author: "{opening_scene}"
         "10-15% of total word count",
         """Write the INTRODUCTION AND CONTEXT SETTING section.
 
+Narrative continuity with the Hook (CRITICAL):
+- The HOOK has already been drafted and is provided below in the
+  "ALREADY-DRAFTED EARLIER SECTIONS" block. Read it before you write.
+- Your FIRST sentence must pick up directly from the closing image or
+  moment of the hook. Do NOT reset to a fresh topic, do NOT open with a
+  generic statement about the sector, and do NOT open with the
+  protagonist's name in isolation.
+- Reuse at least one concrete noun, actor, place or setting from the
+  hook in your first paragraph so the reader feels they are still in
+  the same story.
+- Do NOT repeat or paraphrase facts the hook has already stated. After
+  the bridging opener, MOVE the reader outward from the hook's specific
+  moment into the systemic / sectoral context.
+
 Requirements:
 - Establish the systemic or sectoral context.
 - Introduce the primary protagonist by name, role and institutional affiliation.
@@ -671,6 +686,19 @@ Must NOT:
     "introduction": (
         "~1 page (350-500 words)",
         """Write the INTRODUCTION of this decision-forcing case.
+
+Narrative continuity with the Hook (CRITICAL):
+- The HOOK has already been drafted and is provided below in the
+  "ALREADY-DRAFTED EARLIER SECTIONS" block. Read it before you write.
+- Your FIRST sentence must pick up directly from the closing image or
+  moment of the hook. Do NOT reset to a fresh topic and do NOT open
+  with a generic scene-setter unrelated to the hook.
+- Reuse at least one concrete noun, actor, place or setting from the
+  hook in your first paragraph so the reader stays inside the same
+  story.
+- Do NOT repeat or paraphrase facts the hook has already stated. After
+  the bridging opener, widen the lens to the institutional setting,
+  protagonist's role, and the nature of the decision.
 
 Requirements:
 - Set the scene: where, when and in what institutional context the case takes
@@ -1319,6 +1347,60 @@ def _strip_inline_markers(text):
     return re.sub(r"\[FOOTNOTE NEEDED:[^\]]+\]", "", text)
 
 
+CBC_LOGO_PATH = "attached_assets/cbc_logo_1770210514857.png"
+AGK_LOGO_PATH = "attached_assets/agk_logo_1770210514857.png"
+
+
+def _add_logo_header_docx(doc):
+    """Add CBC + AGK logos at the top of a DOCX cover page as a two-cell
+    centred table. Silently skips any logo whose file is missing."""
+    try:
+        table = doc.add_table(rows=1, cols=2)
+        table.autofit = True
+        left_cell, right_cell = table.rows[0].cells
+        left_p = left_cell.paragraphs[0]
+        left_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        right_p = right_cell.paragraphs[0]
+        right_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        if os.path.exists(CBC_LOGO_PATH):
+            try:
+                left_p.add_run().add_picture(CBC_LOGO_PATH, width=Inches(1.4))
+            except Exception:
+                pass
+        if os.path.exists(AGK_LOGO_PATH):
+            try:
+                right_p.add_run().add_picture(AGK_LOGO_PATH, width=Inches(1.4))
+            except Exception:
+                pass
+        doc.add_paragraph("")
+    except Exception:
+        pass
+
+
+def _add_logo_header_pdf(pdf):
+    """Place CBC + AGK logos at the top of the current PDF page (left and
+    right). Returns the y-coordinate to continue from. Silently skips any
+    logo whose file is missing."""
+    try:
+        page_w = pdf.w
+        margin = pdf.l_margin
+        logo_w = 32  # mm
+        top_y = pdf.get_y()
+        if os.path.exists(CBC_LOGO_PATH):
+            try:
+                pdf.image(CBC_LOGO_PATH, x=margin, y=top_y, w=logo_w)
+            except Exception:
+                pass
+        if os.path.exists(AGK_LOGO_PATH):
+            try:
+                pdf.image(AGK_LOGO_PATH, x=page_w - margin - logo_w, y=top_y, w=logo_w)
+            except Exception:
+                pass
+        pdf.set_y(top_y + logo_w * 0.6 + 4)
+    except Exception:
+        pass
+
+
 def build_case_docx(case_type, intake_metadata, draft_sections, compliance=None):
     """Produce a styled DOCX matching the Lesson-Drawing / Decision-Forcing /
     Caselet template."""
@@ -1330,8 +1412,8 @@ def build_case_docx(case_type, intake_metadata, draft_sections, compliance=None)
 
     blue = RGBColor(0x1E, 0x3A, 0x8A)
 
-    # Cover page
-    doc.add_paragraph("")
+    # Cover page — logos at the very top
+    _add_logo_header_docx(doc)
     _add_heading(doc, title, level=0, color=blue)
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1435,7 +1517,7 @@ def build_teaching_note_docx(intake_metadata, teaching_note, case_type):
     blue = RGBColor(0x1E, 0x3A, 0x8A)
     case_label = CASE_TYPES.get(case_type, {}).get("label", "Case")
 
-    doc.add_paragraph("")
+    _add_logo_header_docx(doc)
     _add_heading(doc, "Teaching Note", level=0, color=blue)
     sub = doc.add_paragraph()
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1542,7 +1624,8 @@ def build_case_pdf(case_type, intake_metadata, draft_sections, compliance=None):
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
-    # Cover
+    # Cover — logos at the top, then title
+    _add_logo_header_pdf(pdf)
     pdf.set_font("Helvetica", "B", 22)
     pdf.set_text_color(30, 58, 138)
     pdf.multi_cell(0, 10, sanitize_text_for_pdf(title), align="C")

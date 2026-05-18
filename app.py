@@ -1440,11 +1440,11 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 step=100,
             )
             competencies = st.text_input(
-                "Competency to align with (optional, free text)",
+                "Competency to align with (optional)",
                 value=meta.get("competencies", ""),
             )
             note_from_author = st.text_area(
-                "Note from the Author (optional — appears as front matter)",
+                "Note from the Author (appears as front matter)",
                 value=meta.get("note_from_author", ""),
                 height=80,
             )
@@ -1460,6 +1460,24 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
             saved = st.form_submit_button("Save and continue →")
 
         if saved:
+            mandatory = [
+                ("Case title", title),
+                ("Author(s)", authors),
+                ("Initiative or programme name", initiative),
+                ("Country / state / region", region),
+                ("Sector or theme", sector),
+                ("Primary protagonist", protagonist),
+                ("Time period covered", time_period),
+                ("Note from the Author", note_from_author),
+            ]
+            missing = [label for label, val in mandatory if not (val or "").strip()]
+            if missing:
+                st.error(
+                    "Please fill the following required fields before continuing: "
+                    + ", ".join(missing)
+                )
+                st.stop()
+
             st.session_state.gen_metadata = {
                 "title": title.strip(),
                 "authors": authors.strip(),
@@ -1710,10 +1728,26 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
             went_well = st.text_area("What went well?", value=intent.get("went_well", ""), height=80)
             did_not = st.text_area("What did not go as expected?", value=intent.get("did_not_go", ""), height=80)
             key_lesson = st.text_area("If the reader takes away one lesson, what should it be?", value=intent.get("key_lesson", ""), height=80)
-            opening = st.text_area("Preferred opening scene or hook (optional)", value=intent.get("opening_scene", ""), height=80)
+            opening = st.text_area("Preferred opening scene or hook", value=intent.get("opening_scene", ""), height=80)
             saved = st.form_submit_button("Save and continue →")
 
         if saved:
+            intent_required = [
+                ("Central problem", central),
+                ("Dilemma or tension", dilemma),
+                ("What went well", went_well),
+                ("What did not go as expected", did_not),
+                ("Key lesson", key_lesson),
+                ("Preferred opening scene or hook", opening),
+            ]
+            missing = [label for label, val in intent_required if not (val or "").strip()]
+            if missing:
+                st.error(
+                    "Please fill the following required fields before continuing: "
+                    + ", ".join(missing)
+                )
+                st.stop()
+
             st.session_state.gen_intent = {
                 "central_problem": central.strip(),
                 "dilemma": dilemma.strip(),
