@@ -687,18 +687,21 @@ Must NOT:
         "~1 page (350-500 words)",
         """Write the INTRODUCTION of this decision-forcing case.
 
-Narrative continuity with the Hook (CRITICAL):
-- The HOOK has already been drafted and is provided below in the
-  "ALREADY-DRAFTED EARLIER SECTIONS" block. Read it before you write.
+Narrative continuity with the Executive Summary (CRITICAL):
+- The EXECUTIVE SUMMARY has already been drafted and is provided
+  below in the "EXECUTIVE SUMMARY (already drafted, do not repeat)"
+  block (and also inside the "ALREADY-DRAFTED EARLIER SECTIONS"
+  block). Read it before you write.
 - Your FIRST sentence must pick up directly from the closing image or
-  moment of the hook. Do NOT reset to a fresh topic and do NOT open
-  with a generic scene-setter unrelated to the hook.
+  moment of the executive summary. Do NOT reset to a fresh topic and
+  do NOT open with a generic scene-setter unrelated to it.
 - Reuse at least one concrete noun, actor, place or setting from the
-  hook in your first paragraph so the reader stays inside the same
-  story.
-- Do NOT repeat or paraphrase facts the hook has already stated. After
-  the bridging opener, widen the lens to the institutional setting,
-  protagonist's role, and the nature of the decision.
+  executive summary in your first paragraph so the reader stays
+  inside the same story.
+- Do NOT repeat or paraphrase facts the executive summary has already
+  stated. After the bridging opener, widen the lens to the
+  institutional setting, protagonist's role, and the nature of the
+  decision.
 
 Requirements:
 - Set the scene: where, when and in what institutional context the case takes
@@ -883,6 +886,7 @@ def draft_case_section(
     )
 
     prior_block = ""
+    hook_block = ""
     if previous_sections:
         joined = []
         for sid, sname in CASE_TYPES[case_type]["sections"]:
@@ -890,6 +894,26 @@ def draft_case_section(
                 joined.append(f"### {sname}\n{previous_sections[sid]['text']}")
         if joined:
             prior_block = "\n\n=== ALREADY-DRAFTED EARLIER SECTIONS ===\n" + "\n\n".join(joined)
+
+        # When drafting the introduction, surface the prior opening section
+        # (hook for Lesson-Drawing, executive_summary for Decision-Forcing)
+        # in its own clearly-labelled block so the model uses it as the
+        # narrative bridge rather than treating it as just one of several
+        # prior sections.
+        if section_id == "introduction":
+            opener_sid = "hook" if case_type == "lesson_drawing" else "executive_summary"
+            opener_text = ((previous_sections.get(opener_sid) or {}).get("text") or "").strip()
+            if opener_text:
+                opener_label = "HOOK" if opener_sid == "hook" else "EXECUTIVE SUMMARY"
+                hook_block = (
+                    f"\n\n=== {opener_label} (already drafted, do not repeat) ===\n"
+                    f"{opener_text}\n"
+                    f"=== END {opener_label} ===\n"
+                    "Your introduction's first sentence MUST bridge from the "
+                    "closing image / moment of the block above, reuse at least "
+                    "one concrete noun / actor / place from it, and then widen "
+                    "out. Do not restate its facts."
+                )
 
     feedback_block = ""
     if author_feedback:
@@ -912,7 +936,7 @@ Amrit Gyaan Kosh repository. Word guide for this section: {word_guide}.
 
 === SOURCE MATERIAL ===
 {ctx['sources_block']}
-{prior_block}{feedback_block}
+{prior_block}{hook_block}{feedback_block}
 
 Now write the section. Return ONLY the section body text — no headings beyond
 sub-headings inside the section, no commentary, no JSON, no markdown fences.

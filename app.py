@@ -1471,6 +1471,11 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 ("Note from the Author", note_from_author),
             ]
             missing = [label for label, val in mandatory if not (val or "").strip()]
+            try:
+                if int(word_target) <= 0:
+                    missing.append("Target word count")
+            except (TypeError, ValueError):
+                missing.append("Target word count")
             if missing:
                 st.error(
                     "Please fill the following required fields before continuing: "
