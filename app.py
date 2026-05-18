@@ -1466,16 +1466,19 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 ("Initiative or programme name", initiative),
                 ("Country / state / region", region),
                 ("Sector or theme", sector),
-                ("Primary protagonist", protagonist),
-                ("Time period covered", time_period),
-                ("Note from the Author", note_from_author),
+                ("Primary protagonist (name and role)", protagonist),
+                ("Time period covered (e.g., 2018-2024)", time_period),
+                ("Note from the Author (appears as front matter)", note_from_author),
             ]
             missing = [label for label, val in mandatory if not (val or "").strip()]
+            target_word_label = (
+                f"Target word count (recommended {ctype_meta['word_min']}–{ctype_meta['word_max']})"
+            )
             try:
                 if int(word_target) <= 0:
-                    missing.append("Target word count")
+                    missing.append(target_word_label)
             except (TypeError, ValueError):
-                missing.append("Target word count")
+                missing.append(target_word_label)
             if missing:
                 st.error(
                     "Please fill the following required fields before continuing: "

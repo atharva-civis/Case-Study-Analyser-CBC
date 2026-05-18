@@ -513,9 +513,12 @@ Preferred opening cue from the author: "{opening_scene}"
         "10-15% of total word count",
         """Write the INTRODUCTION AND CONTEXT SETTING section.
 
-Narrative continuity with the Hook (CRITICAL):
-- The HOOK has already been drafted and is provided below in the
-  "ALREADY-DRAFTED EARLIER SECTIONS" block. Read it before you write.
+Narrative continuity with the Hook (CRITICAL — applies only when the
+hook has already been drafted):
+- If a "HOOK (already drafted, do not repeat)" block appears further
+  down, read it before you write and follow all of the rules below.
+  If no such block is present, skip this continuity guidance and
+  write a standalone introduction.
 - Your FIRST sentence must pick up directly from the closing image or
   moment of the hook. Do NOT reset to a fresh topic, do NOT open with a
   generic statement about the sector, and do NOT open with the
@@ -687,11 +690,12 @@ Must NOT:
         "~1 page (350-500 words)",
         """Write the INTRODUCTION of this decision-forcing case.
 
-Narrative continuity with the Executive Summary (CRITICAL):
-- The EXECUTIVE SUMMARY has already been drafted and is provided
-  below in the "EXECUTIVE SUMMARY (already drafted, do not repeat)"
-  block (and also inside the "ALREADY-DRAFTED EARLIER SECTIONS"
-  block). Read it before you write.
+Narrative continuity with the Executive Summary (CRITICAL — applies
+only when the executive summary has already been drafted):
+- If an "EXECUTIVE SUMMARY (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of
+  the rules below. If no such block is present, skip this continuity
+  guidance and write a standalone introduction.
 - Your FIRST sentence must pick up directly from the closing image or
   moment of the executive summary. Do NOT reset to a fresh topic and
   do NOT open with a generic scene-setter unrelated to it.
