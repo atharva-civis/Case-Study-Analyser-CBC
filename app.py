@@ -1741,11 +1741,11 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
 
         if saved:
             intent_required = [
-                ("Central problem", central),
-                ("Dilemma or tension", dilemma),
-                ("What went well", went_well),
-                ("What did not go as expected", did_not),
-                ("Key lesson", key_lesson),
+                ("What is the central problem the case explores?", central),
+                ("What is the dilemma or tension at the heart of the case?", dilemma),
+                ("What went well?", went_well),
+                ("What did not go as expected?", did_not),
+                ("If the reader takes away one lesson, what should it be?", key_lesson),
                 ("Preferred opening scene or hook", opening),
             ]
             missing = [label for label, val in intent_required if not (val or "").strip()]

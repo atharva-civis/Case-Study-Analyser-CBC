@@ -891,24 +891,29 @@ def draft_case_section(
 
     prior_block = ""
     hook_block = ""
+    # When drafting the introduction, surface the prior opening section
+    # (hook for Lesson-Drawing, executive_summary for Decision-Forcing)
+    # in its own clearly-labelled block so the model uses it as the
+    # narrative bridge. To avoid prompt bloat / duplicate content, we
+    # exclude that opener from the generic prior_block.
+    opener_sid_for_intro = None
+    if section_id == "introduction":
+        opener_sid_for_intro = "hook" if case_type == "lesson_drawing" else "executive_summary"
+
     if previous_sections:
         joined = []
         for sid, sname in CASE_TYPES[case_type]["sections"]:
+            if sid == opener_sid_for_intro:
+                continue
             if sid in previous_sections and previous_sections[sid].get("text"):
                 joined.append(f"### {sname}\n{previous_sections[sid]['text']}")
         if joined:
             prior_block = "\n\n=== ALREADY-DRAFTED EARLIER SECTIONS ===\n" + "\n\n".join(joined)
 
-        # When drafting the introduction, surface the prior opening section
-        # (hook for Lesson-Drawing, executive_summary for Decision-Forcing)
-        # in its own clearly-labelled block so the model uses it as the
-        # narrative bridge rather than treating it as just one of several
-        # prior sections.
-        if section_id == "introduction":
-            opener_sid = "hook" if case_type == "lesson_drawing" else "executive_summary"
-            opener_text = ((previous_sections.get(opener_sid) or {}).get("text") or "").strip()
+        if opener_sid_for_intro:
+            opener_text = ((previous_sections.get(opener_sid_for_intro) or {}).get("text") or "").strip()
             if opener_text:
-                opener_label = "HOOK" if opener_sid == "hook" else "EXECUTIVE SUMMARY"
+                opener_label = "HOOK" if opener_sid_for_intro == "hook" else "EXECUTIVE SUMMARY"
                 hook_block = (
                     f"\n\n=== {opener_label} (already drafted, do not repeat) ===\n"
                     f"{opener_text}\n"
