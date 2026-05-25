@@ -549,6 +549,24 @@ Requirements:
         "10-12% of total word count",
         """Write the DEVELOPMENT CHALLENGE AND CENTRAL DILEMMA section. Use two parts.
 
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment, actor or idea of the previous section. Do NOT reset to a
+  fresh topic, do NOT open with a generic statement about the sector
+  or the problem, and do NOT open with an abstract definition of the
+  dilemma.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in your opening paragraph so the reader feels they
+  are still inside the same story.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, move the reader from that moment
+  into the structural challenge below.
+
 Part A — Development Challenge
 Describe the structural or systemic problem the initiative was designed to
 address. This is a pattern or condition, not a single event. Use sub-headings
@@ -575,6 +593,24 @@ Requirements:
         "10-12% of total word count",
         """Write the DELIVERY CHALLENGES section.
 
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment, actor or tension of the previous section (typically the
+  Central Dilemma). Do NOT open with a bare sub-heading, do NOT open
+  with a generic statement such as "Several challenges arose", and do
+  NOT open with a list.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in the opening sentence so the reader stays inside
+  the same story before the first sub-heading.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, move the reader into the
+  challenges below.
+
 For each delivery challenge present in the source material:
 - Name it with a sub-heading.
 - Describe what it was and why it arose.
@@ -594,6 +630,25 @@ Requirements:
     "implementation": (
         "35-40% of total word count — the longest section",
         """Write the CHRONOLOGICAL IMPLEMENTATION section.
+
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment, actor or unresolved tension of the previous section
+  (typically the Delivery Challenges). Do NOT open with a bare phase
+  sub-heading, do NOT open with a generic statement such as "The
+  initiative unfolded in several phases", and do NOT begin with a
+  date in isolation.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in the opening sentence so the reader stays inside
+  the same story before the first phase sub-heading.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, move into the first chronological
+  phase.
 
 This is the longest section of the case. Use the confirmed chronology as the
 backbone and group events into chronological sub-sections (for example,
@@ -623,6 +678,24 @@ Confirmed chronology to use as the backbone:
         "12-15% of total word count",
         """Write the LESSONS LEARNT section.
 
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence (before any lesson sub-heading) must bridge
+  directly from the closing image, moment, actor or phase of the
+  previous section (typically the final phase of Implementation). Do
+  NOT open with a bare lesson sub-heading, do NOT open with a generic
+  framing such as "Several lessons emerge from this case", and do NOT
+  jump straight into prescriptions.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in that opening sentence so the reader feels the
+  lessons grow out of the story they have just read.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, move into the first lesson.
+
 For each lesson:
 - Give it a clear sub-heading stating the lesson in plain language.
 - Write two to four paragraphs explaining: what happened in the case that
@@ -646,6 +719,24 @@ Requirements:
     "closing": (
         "150-250 words",
         """Write the CLOSING section.
+
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment, actor or lesson of the previous section (typically the
+  final Lesson Learnt). Do NOT reset to a generic summary framing such
+  as "In conclusion" or "Looking back", and do NOT restate the
+  initiative's name in isolation.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in your opening sentence so the closing feels like
+  the same story coming to rest.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, return to the central dilemma as
+  required below.
 
 The Closing must:
 - Return to the central dilemma in the first paragraph and describe, in
@@ -721,6 +812,24 @@ Requirements:
         "2-3 pages (700-1100 words)",
         """Write the BACKGROUND section.
 
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment or actor of the previous section (typically the
+  Introduction). Do NOT reset to a textbook-style opening on the
+  sector, do NOT begin with a date in isolation, and do NOT restate
+  the protagonist's name and title.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in your opening paragraph so the reader stays
+  inside the same story.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, widen the lens into the sector
+  and historical context below.
+
 Requirements:
 - Describe the sector, system or institutional context. Draw on the confirmed
   source material.
@@ -738,6 +847,24 @@ Requirements:
     "narrative": (
         "3-5 pages (1100-1800 words)",
         """Write the NARRATIVE section.
+
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment or actor of the previous section (typically the Background).
+  Do NOT begin with a date in isolation, do NOT restate the
+  protagonist's name and title, and do NOT open with a generic
+  framing such as "Events unfolded as follows".
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in your opening paragraph so the reader stays
+  inside the same story before the first event in the chronology.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, move into the first event in the
+  chronology.
 
 Requirements:
 - Trace the sequence of events that led directly to the decision point. Use
@@ -765,6 +892,24 @@ Confirmed chronology:
         "~300 words",
         """Write the DILEMMA OR PUZZLE section. About 300 words.
 
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the closing image,
+  moment or actor of the previous section (typically the Narrative).
+  Do NOT reset to an abstract framing of the decision, do NOT begin
+  with a generic line such as "The protagonist now faced a difficult
+  choice", and do NOT restate the protagonist's name and title.
+- Reuse at least one concrete noun, actor, place or moment from the
+  previous section in your opening sentence so the reader feels the
+  decision arising from the events they have just read.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, state the decision precisely as
+  required below.
+
 Requirements:
 - State the decision the protagonist faced, clearly and precisely, at the
   exact moment in time where the case stops.
@@ -788,6 +933,23 @@ Confirmed dilemma statement:
     "epilogue": (
         "Optional — up to 300 words",
         """Write a brief EPILOGUE for this decision-forcing case.
+
+Narrative continuity with the previous section (CRITICAL — applies only
+when the previous section has already been drafted):
+- If a "PREVIOUS SECTION ... (already drafted, do not repeat)" block
+  appears further down, read it before you write and follow all of the
+  rules below. If no such block is present, skip this continuity
+  guidance and write a standalone section.
+- Your FIRST sentence must bridge directly from the decision question
+  posed at the end of the previous section (the Dilemma or Puzzle)
+  and reveal what the protagonist actually decided. Do NOT reset to a
+  generic framing such as "In the event, ...", and do NOT restate the
+  protagonist's name and title in isolation.
+- Reuse at least one concrete noun, actor, place or option from the
+  previous section in your opening sentence so the epilogue answers
+  the question the reader was just asked.
+- Do NOT repeat or paraphrase facts the previous section has already
+  stated. After the bridging opener, describe what followed.
 
 Requirements:
 - State what the protagonist actually decided.
@@ -891,38 +1053,68 @@ def draft_case_section(
 
     prior_block = ""
     hook_block = ""
-    # When drafting the introduction, surface the prior opening section
-    # (hook for Lesson-Drawing, executive_summary for Decision-Forcing)
-    # in its own clearly-labelled block so the model uses it as the
-    # narrative bridge. To avoid prompt bloat / duplicate content, we
-    # exclude that opener from the generic prior_block.
-    opener_sid_for_intro = None
-    if section_id == "introduction":
-        opener_sid_for_intro = "hook" if case_type == "lesson_drawing" else "executive_summary"
+    # Surface the IMMEDIATELY PREVIOUS already-drafted section in its own
+    # clearly-labelled "bridge" block so the model uses it as the narrative
+    # bridge for this section. This applies to every non-opening section
+    # (introduction onwards), not just the introduction. To avoid prompt
+    # bloat and duplicate content, that previous section is excluded from
+    # the generic prior_block below.
+    #
+    # For the introduction specifically, the immediately-previous section
+    # is the opener (hook / executive_summary) and we keep the original
+    # HOOK / EXECUTIVE SUMMARY labelling so the existing intro-prompt
+    # continuity rules still match.
+    section_order = [sid for sid, _ in CASE_TYPES[case_type]["sections"]]
+    bridge_sid = None
+    if section_id in section_order:
+        idx = section_order.index(section_id)
+        for prev_idx in range(idx - 1, -1, -1):
+            candidate = section_order[prev_idx]
+            if (previous_sections.get(candidate) or {}).get("text"):
+                bridge_sid = candidate
+                break
 
     if previous_sections:
         joined = []
         for sid, sname in CASE_TYPES[case_type]["sections"]:
-            if sid == opener_sid_for_intro:
+            if sid == bridge_sid:
                 continue
             if sid in previous_sections and previous_sections[sid].get("text"):
                 joined.append(f"### {sname}\n{previous_sections[sid]['text']}")
         if joined:
             prior_block = "\n\n=== ALREADY-DRAFTED EARLIER SECTIONS ===\n" + "\n\n".join(joined)
 
-        if opener_sid_for_intro:
-            opener_text = ((previous_sections.get(opener_sid_for_intro) or {}).get("text") or "").strip()
-            if opener_text:
-                opener_label = "HOOK" if opener_sid_for_intro == "hook" else "EXECUTIVE SUMMARY"
-                hook_block = (
-                    f"\n\n=== {opener_label} (already drafted, do not repeat) ===\n"
-                    f"{opener_text}\n"
-                    f"=== END {opener_label} ===\n"
-                    "Your introduction's first sentence MUST bridge from the "
-                    "closing image / moment of the block above, reuse at least "
-                    "one concrete noun / actor / place from it, and then widen "
-                    "out. Do not restate its facts."
-                )
+        if bridge_sid:
+            bridge_text = ((previous_sections.get(bridge_sid) or {}).get("text") or "").strip()
+            if bridge_text:
+                bridge_name = dict(CASE_TYPES[case_type]["sections"]).get(bridge_sid, bridge_sid)
+                # Preserve the original HOOK / EXECUTIVE SUMMARY labels for
+                # the introduction so the intro prompt's existing continuity
+                # rules (which reference those exact labels) still match.
+                if section_id == "introduction" and bridge_sid in ("hook", "executive_summary"):
+                    bridge_label = "HOOK" if bridge_sid == "hook" else "EXECUTIVE SUMMARY"
+                    hook_block = (
+                        f"\n\n=== {bridge_label} (already drafted, do not repeat) ===\n"
+                        f"{bridge_text}\n"
+                        f"=== END {bridge_label} ===\n"
+                        "Your introduction's first sentence MUST bridge from the "
+                        "closing image / moment of the block above, reuse at least "
+                        "one concrete noun / actor / place from it, and then widen "
+                        "out. Do not restate its facts."
+                    )
+                else:
+                    bridge_label = f"PREVIOUS SECTION: {bridge_name.upper()}"
+                    hook_block = (
+                        f"\n\n=== {bridge_label} (already drafted, do not repeat) ===\n"
+                        f"{bridge_text}\n"
+                        f"=== END {bridge_label} ===\n"
+                        "Your section's FIRST sentence MUST bridge from the "
+                        "closing image / moment / actor of the block above, "
+                        "reuse at least one concrete noun / actor / place / "
+                        "moment from it, and then move into the content this "
+                        "section requires. Do not restate its facts and do "
+                        "not open with a bare sub-heading or generic framing."
+                    )
 
     feedback_block = ""
     if author_feedback:
