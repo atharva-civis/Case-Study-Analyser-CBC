@@ -1,0 +1,21 @@
+As we prepare for the integration of the AI Case Study Creation Tool into our application ecosystem and servers, our engineering team is conducting an initial technical review. To ensure a smooth transition, efficient hosting setup, and seamless long-term management, we have put together a list of key technical questions regarding the application's architecture and AI setup.
+Could you please review and share details on the following items?
+1. AI Engine & Model Architecture
+LLMs & Hosting: Which specific LLMs/models does the application use? Are model calls routed via external cloud APIs, or are models hosted locally (e.g., via Hugging Face Transformers, Ollama, etc.)?
+API Management: If external APIs are used, how are API keys, rate limits, and model failovers handled within the codebase?
+RAG & Vector Search: Does the application utilize Retrieval-Augmented Generation (RAG) for pulling contextual data? If so, which vector database is implemented (e.g., Pinecone, Qdrant, PGVector, Chroma), and which embedding models and chunking strategies are used?
+Prompt Management: Are prompts hardcoded, dynamically rendered, or managed using a framework/tool (e.g., LangChain, LlamaIndex, LangSmith)?
+Model Customization: Has any fine-tuning been performed on custom datasets, or is the application’s logic strictly prompt-based?
+2. Tech Stack & Asynchronous Tasks
+Core Stack: What is the exact technology stack for the Frontend, Backend, and Database (e.g., React, Node.js, Python/FastAPI, PostgreSQL)?
+Job Execution: How are long-running AI generation tasks handled (e.g., Redis, Celery, BullMQ, or WebSockets for real-time text streaming)?
+3. Infrastructure & Hosting Requirements
+Compute & Storage Specs: What are the recommended minimum compute (CPU, RAM) and storage specifications for Staging and Production environments?
+GPU Requirements: If local model execution/inference is required, what are the minimum VRAM and GPU requirements?
+4. Security, Compliance & Dependencies
+Data Privacy: Are user inputs, prompt context, or generated case study data sent to third-party AI vendors used for model training?
+Encryption: Is data encrypted both at rest and in transit (e.g., AES-256, TLS)?
+Third-Party Services & Licensing: Does the codebase rely on any proprietary third-party libraries, paid SaaS integrations, or open-source software under restrictive licenses (e.g., GPL vs. Apache 2.0/MIT)?
+Security Audits: Have any vulnerability scans or penetration tests been conducted on this codebase recently?
+5. Documentation & Handover Support
+Developer Artifacts: Could you confirm if developer documentation is available, including local setup guides, architecture diagrams, and database schemas?
