@@ -16,6 +16,7 @@ from assessment_criteria import ASSESSMENT_AREAS, ASSESSMENT_CRITERIA, calculate
 from case_generator import (
     CASE_TYPES,
     run_source_processing,
+    sync_protagonist_metadata,
     draft_case_section,
     draft_caselet,
     run_compliance_passes,
@@ -1502,6 +1503,10 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                 "acknowledgements": acknowledgements.strip(),
                 "teaching_note": bool(teaching_note),
             }
+            if st.session_state.gen_processed:
+                sync_protagonist_metadata(
+                    st.session_state.gen_processed, st.session_state.gen_metadata
+                )
             _gen_persist()
             st.session_state.gen_step = 3
             st.rerun()
@@ -1797,6 +1802,21 @@ elif st.session_state.get("active_tool") == "generator" and st.session_state.log
                     st.stop()
 
         proc = st.session_state.gen_processed or {}
+        # Repair saved drafts too, without re-running AI or losing reviewed edits.
+        if sync_protagonist_metadata(proc, st.session_state.gen_metadata):
+            st.session_state.gen_processed = proc
+            _gen_persist()
+
+        st.subheader("Primary protagonist")
+        st.text_input(
+            "Primary protagonist (name and role) — from Step 2",
+            value=proc["stakeholders"]["primary_protagonist"],
+            disabled=True,
+        )
+        st.caption(
+            "Author-provided metadata. To change the name or role, edit Step 2 "
+            "and save. Source-derived stakeholder details are reviewed below."
+        )
 
         with st.expander("Source inventory — review and edit before drafting", expanded=False):
             inv_items = (proc.get("inventory") or {}).get("inventory", [])

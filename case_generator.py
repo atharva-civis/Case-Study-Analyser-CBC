@@ -380,6 +380,19 @@ Rules:
     return _call_json(prompt)
 
 
+def sync_protagonist_metadata(processed, intake_metadata):
+    """Keep author identity separate from source-derived stakeholder evidence.
+
+    Returns whether the stored payload changed; does not discard reviewed edits.
+    """
+    protagonist = ((intake_metadata or {}).get("protagonist") or "").strip()
+    stakeholders = processed.setdefault("stakeholders", {})
+    if stakeholders.get("primary_protagonist") == protagonist:
+        return False
+    stakeholders["primary_protagonist"] = protagonist
+    return True
+
+
 def build_stakeholder_map(sources, intake_metadata):
     """Prompt 2.3 — stakeholder mapping."""
     sources_block = _format_sources_for_prompt(sources, char_budget=28000)
@@ -411,11 +424,17 @@ Return JSON:
 }}
 
 Rules:
-- Name only stakeholders the source material actually identifies.
+- Include the primary protagonist supplied by the author even when the sources
+  do not name them. Preserve the supplied name and role; do not infer extra facts.
+- For a protagonist identified only by author metadata, use an empty source_index
+  list and "unspecified" for perspectives, tensions and outcomes not in sources.
+- Name other stakeholders only when the source material actually identifies them.
 - Where a name is withheld in the source, preserve the anonymity (e.g. "an
   unnamed broker").
 """
-    return _call_json(prompt)
+    result = _call_json(prompt)
+    sync_protagonist_metadata({"stakeholders": result}, intake_metadata)
+    return result
 
 
 def build_dilemma_statement(sources, intake_metadata, intake_intent, case_type):
@@ -478,6 +497,7 @@ def run_source_processing(sources, intake_metadata, intake_intent, case_type, ma
                 results[key] = fut.result()
             except Exception as e:
                 results[key] = {"error": str(e)}
+    sync_protagonist_metadata(results, intake_metadata)
     return results
 
 
